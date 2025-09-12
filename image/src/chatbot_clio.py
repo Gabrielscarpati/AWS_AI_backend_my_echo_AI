@@ -40,7 +40,7 @@ llm = init_chat_model("gpt-4.1-mini", model_provider="openai")
 embeddings = OpenAIEmbeddings(model="text-embedding-3-large", dimensions=EMBEDDING_DIMENSION)
 
 pc = Pinecone(api_key=PINECONE_API_KEY)
-index = pc.Index("conversation-summaries")
+index = pc.Index("influencer-conversation-summary")
 vector_store = PineconeVectorStore(embedding=embeddings, index=index)
 
 
