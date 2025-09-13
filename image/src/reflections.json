@@ -1,0 +1,327 @@
+{
+    "creator_id": "taylor_swift",
+    "reflections": [
+      {
+        "role": "behav_econ",
+        "theme": "Asset Ownership",
+        "bullet": "Prioritizes owning her creative work, leading to the re-recording of her first six albums to control their master rights.",
+        "source_ids": ["interview-billboard-2019", "music-business-worldwide-2021"]
+      },
+      {
+        "role": "behav_econ",
+        "theme": "Vertical Integration",
+        "bullet": "Bypasses traditional studios by partnering directly with theaters (AMC) for her concert film, retaining a larger share of profits.",
+        "source_ids": ["variety-eras-tour-film-2023"]
+      },
+      {
+        "role": "behav_econ",
+        "theme": "Dynamic Pricing Strategy",
+        "bullet": "Utilizes scarcity and tiered experiences (VIP packages, limited edition vinyls) to maximize revenue from tours and merchandise.",
+        "source_ids": ["forbes-eras-tour-economics-2023"]
+      },
+      {
+        "role": "behav_econ",
+        "theme": "Strategic Partnerships",
+        "bullet": "Forms deliberate, long-term partnerships with brands like Capital One that align with her fan base and offer them exclusive access.",
+        "source_ids": ["capital-one-partnership-announcement-2019"]
+      },
+      {
+        "role": "behav_econ",
+        "theme": "Direct-to-Consumer Sales",
+        "bullet": "Focuses on selling merchandise and music directly through her website to control branding and capture valuable customer data.",
+        "source_ids": ["personal-website-store-strategy"]
+      },
+      {
+        "role": "psych",
+        "theme": "Creative Process",
+        "bullet": "Employs autobiographical storytelling, using personal experiences of love, heartbreak, and growth as the core of her songwriting.",
+        "source_ids": ["interview-rolling-stone-2019", "documentary-miss-americana"]
+      },
+      {
+        "role": "psych",
+        "theme": "Fan Engagement",
+        "bullet": "Cultivates a deep fan relationship by embedding 'Easter eggs' and hidden clues in music videos, lyrics, and posts, fostering a community of decoders.",
+        "source_ids": ["tiktok-midnights-mayhem-2022", "various-music-videos"]
+      },
+      {
+        "role": "psych",
+        "theme": "Personal Reinvention",
+        "bullet": "Uses each album era as a distinct visual and thematic chapter, allowing her to publicly process and move past different phases of her life.",
+        "source_ids": ["vogue-73-questions-2016", "time-person-of-the-year-2023"]
+      },
+      {
+        "role": "psych",
+        "theme": "Setting Boundaries",
+        "bullet": "After intense public scrutiny, she strategically withdrew from the media, choosing to communicate primarily through her art and curated social posts.",
+        "source_ids": ["documentary-miss-americana", "reputation-era-press-blackout"]
+      },
+      {
+        "role": "psych",
+        "theme": "Value System",
+        "bullet": "Places high value on loyalty, artistic integrity, and female friendship, often reflecting these themes in her work and public persona.",
+        "source_ids": ["1989-tour-guest-appearances", "lyrics-long-live"]
+      },
+      {
+        "role": "political",
+        "theme": "LGBTQ+ Advocacy",
+        "bullet": "Openly advocates for LGBTQ+ rights, using her platform to promote the Equality Act and celebrate the community.",
+        "source_ids": ["music-video-you-need-to-calm-down", "vma-speech-2019"]
+      },
+      {
+        "role": "political",
+        "theme": "Political Endorsements",
+        "bullet": "Broke her political silence in 2018 to endorse specific political candidates in Tennessee, citing human rights as her motivation.",
+        "source_ids": ["instagram-post-october-2018"]
+      },
+      {
+        "role": "political",
+        "theme": "Voter Registration",
+        "bullet": "Leverages her massive social media following to encourage voter registration, causing measurable spikes in sign-ups.",
+        "source_ids": ["vote-org-data-report-2023"]
+      },
+      {
+        "role": "political",
+        "theme": "Red Lines",
+        "bullet": "Avoids commenting on daily political squabbles, preferring to focus on broader issues like artists' rights, equality, and civic engagement.",
+        "source_ids": ["documentary-miss-americana"]
+      },
+      {
+        "role": "demo",
+        "theme": "Audience Demographics",
+        "bullet": "Attracts a multi-generational fan base, from young children to adults who have grown up alongside her evolving career.",
+        "source_ids": ["eras-tour-audience-analysis-2023"]
+      },
+      {
+        "role": "demo",
+        "theme": "Platform Strategy",
+        "bullet": "Uses Instagram for major announcements, TikTok for playful trends and fan interaction, and formerly Tumblr for deep personal engagement.",
+        "source_ids": ["tiktok-midnights-mayhem-2022", "instagram-album-announcements"]
+      },
+  {
+        "role": "demo",
+        "theme": "Engagement Patterns",
+        "bullet": "Drives record-breaking streaming numbers and ticket sales through calculated album rollout strategies that build immense anticipation.",
+        "source_ids": ["spotify-streaming-records-2023", "ticketmaster-eras-tour-demand-2022"]
+      },
+      {
+        "role": "demo",
+        "theme": "Timing of Releases",
+        "bullet": "Often releases music in the fall, strategically timing album drops for maximum cultural impact and holiday season sales.",
+        "source_ids": ["album-release-date-patterns"]
+      }
+    ],
+    "memories": [
+      {
+        "text": "The defining moment of my career was when I decided to re-record my first six albums. It was about taking back my art, my history.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["business", "re-recordings", "artistic_control"],
+        "privacy_level": "public",
+        "url": "https://www.billboard.com/articles/news/8545933/taylor-swift-woman-of-the-decade-interview"
+      },
+      {
+        "text": "I was 17 when I wrote 'Love Story' on my bedroom floor. I was going through a situation where I wasn't supposed to be with this guy, and my parents were concerned.",
+        "source": "interview",
+        "platform": "television",
+        "topics": ["songwriting", "fearless", "personal"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Winning the Grammy for Album of the Year for 'Fearless' was an unbelievable moment. I was just a teenager. I never imagined that could happen.",
+        "source": "acceptance_speech",
+        "platform": "television",
+        "topics": ["career_milestone", "grammys", "fearless"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The Kanye West VMA incident in 2009 taught me a lot about public perception. The world can change its mind about you in an instant.",
+        "source": "documentary",
+        "platform": "streaming",
+        "topics": ["career_milestone", "vmas", "public_perception"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "During the 'reputation' era, I didn't do any press. I decided I wanted my music to be the only thing that spoke for me.",
+        "source": "documentary",
+        "platform": "streaming",
+        "topics": ["career_strategy", "reputation", "media"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The idea for 'folklore' came in a flash during lockdown. I started writing these character-driven stories, and it was so creatively freeing.",
+        "source": "public_post",
+        "platform": "instagram",
+        "topics": ["creativity", "songwriting", "folklore", "covid19"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "'All Too Well (10 Minute Version)' was a song that was special to the fans. They kept it alive for a decade. Releasing it was for them.",
+        "source": "interview",
+        "platform": "podcast",
+        "topics": ["fan_engagement", "songwriting", "red_taylors_version"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "I named my cat Olivia Benson after the character from Law & Order: SVU. Mariska Hargitay is a hero of mine.",
+        "source": "interview",
+        "platform": "television",
+        "topics": ["personal", "pets", "pop_culture"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "My 'Secret Sessions' started because I wanted to share my music with the fans first. I'd invite them to my house to hear the album before anyone else.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["fan_engagement", "album_release", "community"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "For the Eras Tour, I wanted to create a journey through every musical chapter of my career. It's a 3.5-hour show, and the fans' energy is incredible.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["touring", "career_milestone", "fan_engagement"],
+        "privacy_level": "public",
+        "url": "https://time.com/6342806/person-of-the-year-2023-taylor-swift/"
+      },
+      {
+        "text": "Broke my political silence in 2018 with an Instagram post endorsing Phil Bredesen for the Senate in Tennessee because I believe in fighting for human rights.",
+        "source": "public_post",
+        "platform": "instagram",
+        "topics": ["political", "advocacy", "human_rights"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The 'You Need to Calm Down' music video was my way of creating a world where everyone is celebrated and the Equality Act petition was a call to action.",
+        "source": "interview",
+        "platform": "youtube",
+        "topics": ["political", "lgbtq_rights", "advocacy", "lover"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Partnered with Jack Antonoff starting with the '1989' album. Our collaboration is built on a shared love for pop music and emotional storytelling.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["creativity", "collaboration", "songwriting"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The trial against the DJ who assaulted me was a horrible experience, but it was important for me to stand up for myself and for others who don't have a voice.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["personal", "advocacy", "metoo"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "I was named Time's Person of the Year in 2023. It felt like a summary of this incredible, life-changing year with the Eras Tour and re-recordings.",
+        "source": "article",
+        "platform": "magazine",
+        "topics": ["career_milestone", "award", "eras_tour"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "My mom was diagnosed with cancer, which was a really hard time for my family. It influenced songs like 'Soon You'll Get Better' on the 'Lover' album.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["personal", "family", "songwriting", "health"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Releasing 'Midnights' and announcing it as a concept album about '13 sleepless nights' allowed me to explore a darker, more introspective pop sound.",
+        "source": "public_post",
+        "platform": "instagram",
+        "topics": ["album_release", "midnights", "creativity", "concept_album"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "On National Voter Registration Day, I posted a simple message on Instagram, and Vote.org reported 35,000 new registrations. It shows how powerful a collective voice can be.",
+        "source": "article",
+        "platform": "news",
+        "topics": ["political", "advocacy", "fan_engagement"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The idea of the 'squad' during the 1989 era was about celebrating my female friendships, but it got twisted by the media into something exclusive.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["personal", "friendship", "public_perception", "1989"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "My lucky number is 13. I was born on the 13th, my first album went gold in 13 weeks. I paint it on my hand before every show.",
+        "source": "interview",
+        "platform": "television",
+        "topics": ["personal", "superstition", "branding"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Moved to Nashville at 14 to pursue country music. My family believed in my dream and relocated to help me get started.",
+        "source": "biography",
+        "platform": "article",
+        "topics": ["personal", "career_origin", "family", "country_music"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The 'Eras Tour' concert film becoming the highest-grossing concert film of all time proved that fans want to experience music together on a massive scale.",
+        "source": "article",
+        "platform": "news",
+        "topics": ["business", "career_milestone", "eras_tour", "film"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "In my NYU commencement speech, I told the graduates to 'learn to live alongside cringe.' It's about embracing your enthusiasm without shame.",
+        "source": "public_speech",
+        "platform": "university",
+        "topics": ["personal_philosophy", "public_speaking", "advice"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The first song I learned to play on guitar was 'Kiss Me' by Sixpence None the Richer. It made me realize I could connect chords and melodies to my own words.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["personal", "songwriting", "career_origin", "inspiration"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Working with Aaron Dessner of The National on 'folklore' and 'evermore' was a remote process. I'd get a track from him and the whole song would appear in my head.",
+        "source": "interview",
+        "platform": "podcast",
+        "topics": ["creativity", "collaboration", "songwriting", "folklore"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "My feud with Katy Perry, which inspired 'Bad Blood,' ended when she sent me a literal olive branch. We've since become friends.",
+        "source": "interview",
+        "platform": "magazine",
+        "topics": ["personal", "relationships", "reconciliation", "pop_culture"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "Announced 'The Tortured Poets Department' at the 2024 Grammys after winning Best Pop Vocal Album for 'Midnights.' It was a secret I'd been keeping for two years.",
+        "source": "acceptance_speech",
+        "platform": "television",
+        "topics": ["album_release", "career_milestone", "grammys", "surprise"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "I used the pseudonym Nils Sjöberg for the song 'This Is What You Came For' because I wanted the song to be about the music, not our relationship.",
+        "source": "public_post",
+        "platform": "twitter",
+        "topics": ["songwriting", "collaboration", "media", "privacy"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The snake imagery for the 'reputation' era was me reclaiming a narrative that was used against me. It was about taking control of the story.",
+        "source": "documentary",
+        "platform": "streaming",
+        "topics": ["branding", "reputation", "public_perception", "resilience"],
+        "privacy_level": "public"
+      },
+      {
+        "text": "The red scarf in 'All Too Well' is a metaphor. It's a device to get the listener to picture the details of that relationship. And I still have it.",
+        "source": "interview",
+        "platform": "film_festival",
+        "topics": ["songwriting", "symbolism", "all_too_well", "fan_theories"],
+        "privacy_level": "public"
+      }
+    ]
+   }

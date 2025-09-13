@@ -77,6 +77,7 @@ class State(TypedDict, total=False):
     """Defines the state of the chatbot conversation."""
     user_id: str
     creator_id: str
+    influencer_name: str  # Added for dynamic influencer personality
     chat_history: List[BaseMessage]
     msgs_cnt_by_user: int
     user_query: str
@@ -85,6 +86,9 @@ class State(TypedDict, total=False):
     influencer_answer: str
     influencer_sources: Dict[str, Any]
     response: str
+    is_summary_turn: bool
+    message_summary: str
+    summary_generated: bool
 
 
 def messages_to_txt(messages: List[BaseMessage]) -> str:
@@ -350,23 +354,7 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
         "memories": selected_mems,
     }
 
-TEMPLATE = """You are preparing an answer about influencer {creator_id}.
-Use REFLECTIONS for stance/values/best practices; use MEMORIES for quotes/examples/dates.
-Cite short source notes (source/date) in-line. Annotate claims with [r:ID] or [m:ID] where helpful.
-
-User question:
-{question}
-
-Lenses selected: {lenses}
-
-REFLECTIONS (role • theme • bullet • id):
-{ref_lines}
-
-MEMORIES (source @ date • id) snippet:
-{mem_lines}
-
-Answer with: (a) 3–5 bullet recommendations (b) 1–2 tailored examples (c) any red lines to avoid.
-"""
+# TEMPLATE constant removed - now using dynamic prompt from YAML
 
 def _truncate_lines(lines: List[str], max_chars: int) -> List[str]:
     out, total = [], 0
@@ -377,17 +365,23 @@ def _truncate_lines(lines: List[str], max_chars: int) -> List[str]:
         total += len(ln)
     return out
 
-def format_pack(creator_id: str, question: str, pack: Dict[str, Any], max_chars: int = 6000) -> str:
+def format_pack(creator_id: str, question: str, pack: Dict[str, Any], influencer_name: str = None, conversation_summaries: str = "", max_chars: int = 6000) -> str:
     ref_lines_all = [f"- [{r['role']}] • {r.get('theme','')} • {r.get('bullet','')} • id={r['id']}" for r in pack.get("reflections", [])]
     mem_lines_all = [f"- ({m.get('source','')} @ {m.get('created_at','')}) {m.get('text','')} • id={m['id']}" for m in pack.get("memories", [])]
     ref_lines = _truncate_lines(ref_lines_all, max_chars // 2)
     mem_lines = _truncate_lines(mem_lines_all, max_chars // 2)
-    return TEMPLATE.format(
-        creator_id=creator_id,
+    
+    # Use influencer name if provided, otherwise fallback to creator_id
+    display_name = influencer_name or creator_id
+    
+    # Use the dynamic template from YAML
+    template = prompt_templates['DYNAMIC_INFLUENCER_PROMPT']
+    return template.format(
+        influencer_name=display_name,
         question=question,
-        lenses=", ".join(pack.get("lenses_used", [])),
         ref_lines="\n".join(ref_lines) or "- (none)",
         mem_lines="\n".join(mem_lines) or "- (none)",
+        conversation_summaries=conversation_summaries,
     )
 
 def _openai_chat(messages: List[Dict[str,str]], model: str, temperature: float, max_tokens: int) -> str:
@@ -416,9 +410,9 @@ def _ollama_chat(messages: List[Dict[str,str]], model: str, temperature: float, 
     data = r.json()
     return data["choices"][0]["message"]["content"]
 
-def answer_with_rag(question: str, creator_id: str, model: str | None = None, provider: str | None = None, temperature: float = 0.4, max_tokens: int = 600, use_cross_encoder: bool = True) -> Dict[str, Any]:
+def answer_with_rag(question: str, creator_id: str, influencer_name: str = None, conversation_summaries: str = "", model: str | None = None, provider: str | None = None, temperature: float = 0.4, max_tokens: int = 600, use_cross_encoder: bool = True) -> Dict[str, Any]:
     pack = influencer_retrieve(question, creator_id=creator_id, use_cross_encoder=use_cross_encoder)
-    prompt = format_pack(creator_id, question, pack)
+    prompt = format_pack(creator_id, question, pack, influencer_name=influencer_name, conversation_summaries=conversation_summaries)
 
     provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
     if provider == "openai":
@@ -459,14 +453,18 @@ def generate_conversation_response(state: State) -> State:
 
 def generate_influencer_answer(state: State) -> State:
     creator_id = state.get('creator_id') or ""
-    # Incorporate conversation summaries into the question while using the influencer TEMPLATE
-    combined_question = (
-        f"Conversation summaries (may be empty):\n{state.get('retrieved_summaries','')}\n\n"
-        f"User question: {state.get('user_query','')}"
-    )
+    # Get influencer name from state or use creator_id as fallback
+    influencer_name = state.get('influencer_name') or creator_id
+    
+    # Pass conversation summaries separately rather than combining with question
+    user_question = state.get('user_query', '')
+    conversation_summaries = state.get('retrieved_summaries', '')
+    
     out = answer_with_rag(
-        combined_question,
+        user_question,
         creator_id=creator_id,
+        influencer_name=influencer_name,
+        conversation_summaries=conversation_summaries,
         temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
         max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
         use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "true").lower() != "false",
@@ -484,58 +482,40 @@ def generate_influencer_answer(state: State) -> State:
     }
 
 
-def blend_answers(state: State) -> State:
-    """Blend conversation-aware response with influencer-specific answer into one cohesive reply."""
-    conv = state.get('conv_response', '')
-    infl = state.get('influencer_answer', '')
-    if not infl:
-        return {"response": conv}
-
-    system = (
-        "You are Haven. Merge two drafts into a single, coherent reply in Haven's voice. "
-        "- Prioritize influencer-specific evidence and stance, but keep therapy tone. "
-        "- Remove duplication and contradictions. "
-        "- Keep answers concise, short paragraphs, 2 emojis max."
-    )
-    user = (
-        f"Conversation-aware draft:\n\n{conv}\n\n"
-        f"Influencer-specific draft:\n\n{infl}\n\n"
-        f"User question (for context): {state.get('user_query','')}"
-    )
-    merged = llm.invoke([
-        SystemMessage(content=system),
-        HumanMessage(content=user)
-    ])
-    return {"response": str(merged.content)}
-
-
 def summarize(state: State) -> State:
-    messages_cnt_by_user = state['msgs_cnt_by_user'] - 1
+    # Prefer explicit frontend flag; otherwise fallback to modulo logic
+    is_summary_turn = state.get('is_summary_turn')
+    if is_summary_turn is None:
+        msgs_cnt_by_user = state.get('msgs_cnt_by_user', 0)
+        is_summary_turn = msgs_cnt_by_user > 0 and (msgs_cnt_by_user % CONVERSATION_SUMMARY_THRESHOLD == 0)
 
-    if messages_cnt_by_user % CONVERSATION_SUMMARY_THRESHOLD == 0 and messages_cnt_by_user > 0:
+    if not is_summary_turn:
+        return {"summary_generated": False, "message_summary": ""}
 
-        messages_to_summarize_txt = messages_to_txt(state['chat_history'][-(CONVERSATION_SUMMARY_THRESHOLD-1):-1])
+    # Summarize the last N messages
+    messages_to_summarize_txt = messages_to_txt(state['chat_history'][-CONVERSATION_SUMMARY_THRESHOLD:])
 
-        prompt = prompt_templates['SUMMARY_PROMPT']
-        prompt = prompt.format(
-            conversation=messages_to_summarize_txt
-        )
+    prompt = prompt_templates['SUMMARY_PROMPT']
+    prompt = prompt.format(
+        conversation=messages_to_summarize_txt
+    )
 
-        response = llm.invoke(prompt)
-        
-        metadata_payload = {
-            "text": response.content,
-            "user_id": state['user_id']
-        }
-        
-        vectors = [(
-            str(uuid.uuid4()), 
-            embeddings.embed_query(response.content),
-            metadata_payload
-        )]
-        index.upsert(vectors=vectors)
-        
-    return {}
+    response = llm.invoke(prompt)
+
+    # Store in vector DB for retrieval
+    metadata_payload = {
+        "text": response.content,
+        "user_id": state['user_id']
+    }
+
+    vectors = [(
+        str(uuid.uuid4()),
+        embeddings.embed_query(response.content),
+        metadata_payload
+    )]
+    index.upsert(vectors=vectors)
+
+    return {"message_summary": str(response.content), "summary_generated": True}
 
 
 graph_builder = StateGraph(State)

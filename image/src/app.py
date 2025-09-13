@@ -31,11 +31,14 @@ def handler(event, context):
         "isBase64Encoded": True/False (this one can be omitted)
         "body": {
             "user_id": <user_id>,
+            "creator_id": <creator_id>,
+            "influencer_name": <optional influencer_name>,
             "chat_history": [(<is_user>, <content>), ...],
-            "msgs_cnt_by_user": ...
+            "msgs_cnt_by_user": ...,
+            "is_summary_turn": <optional bool>
         }
     }
-    Returns JSON {"response": "..."}
+    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str}
     """
     
     raw_body = event.get("body")
@@ -53,8 +56,10 @@ def handler(event, context):
     
     user_id = payload.get("user_id")
     creator_id = payload.get("creator_id")
+    influencer_name = payload.get("influencer_name")  # Optional influencer name from frontend
     chat_history = payload.get("chat_history")
     msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
+    is_summary_turn = payload.get("is_summary_turn")
     
     try:
         chat_history = [convert_to_langchain_obj(chat_obj) for chat_obj in chat_history]
@@ -75,10 +80,16 @@ def handler(event, context):
         "chat_history": chat_history,
         "msgs_cnt_by_user": msgs_cnt_by_user,
         "creator_id": creator_id,
+        "influencer_name": influencer_name,  # Pass influencer name to the state
+        "is_summary_turn": is_summary_turn,
     }
     final_state = chatbot_clio.invoke(state)
     
     return {
         "statusCode": 200,
-        "body": json.dumps({"response": final_state["response"]})
+        "body": json.dumps({
+            "response": final_state.get("response", ""),
+            "summary_generated": final_state.get("summary_generated", False),
+            "message_summary": final_state.get("message_summary", "")
+        })
     }
