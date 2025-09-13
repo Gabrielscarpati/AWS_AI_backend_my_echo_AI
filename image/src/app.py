@@ -52,6 +52,7 @@ def handler(event, context):
         }
     
     user_id = payload.get("user_id")
+    creator_id = payload.get("creator_id")
     chat_history = payload.get("chat_history")
     msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
     
@@ -72,7 +73,8 @@ def handler(event, context):
     state = {
         "user_id": user_id, 
         "chat_history": chat_history,
-        "msgs_cnt_by_user": msgs_cnt_by_user
+        "msgs_cnt_by_user": msgs_cnt_by_user,
+        "creator_id": creator_id,
     }
     final_state = chatbot_clio.invoke(state)
     

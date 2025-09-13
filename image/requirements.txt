@@ -114,3 +114,5 @@ wrapt==1.17.2
 xxhash==3.5.0
 yarl==1.20.1
 zstandard==0.23.0
+sentence-transformers==3.1.1
+rank-bm25==0.2.2
