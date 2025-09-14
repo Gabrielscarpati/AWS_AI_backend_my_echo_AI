@@ -33,6 +33,7 @@ def handler(event, context):
             "user_id": <user_id>,
             "creator_id": <creator_id>,
             "influencer_name": <optional influencer_name>,
+            "influencer_personality_prompt": <optional personality prompt>,
             "chat_history": [(<is_user>, <content>), ...],
             "msgs_cnt_by_user": ...,
             "is_summary_turn": <optional bool>
@@ -57,6 +58,7 @@ def handler(event, context):
     user_id = payload.get("user_id")
     creator_id = payload.get("creator_id")
     influencer_name = payload.get("influencer_name")  # Optional influencer name from frontend
+    influencer_personality_prompt = payload.get("influencer_personality_prompt")  # Optional personality prompt
     chat_history = payload.get("chat_history")
     msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
     is_summary_turn = payload.get("is_summary_turn")
@@ -81,15 +83,17 @@ def handler(event, context):
         "msgs_cnt_by_user": msgs_cnt_by_user,
         "creator_id": creator_id,
         "influencer_name": influencer_name,  # Pass influencer name to the state
+        "influencer_personality_prompt": influencer_personality_prompt,
         "is_summary_turn": is_summary_turn,
     }
     final_state = chatbot_clio.invoke(state)
-    
+    timings = final_state.get('timings', {})
     return {
         "statusCode": 200,
         "body": json.dumps({
             "response": final_state.get("response", ""),
             "summary_generated": final_state.get("summary_generated", False),
-            "message_summary": final_state.get("message_summary", "")
+            "message_summary": final_state.get("message_summary", ""),
+            "timings": timings,
         })
     }

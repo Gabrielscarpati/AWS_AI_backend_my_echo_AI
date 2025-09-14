@@ -6,7 +6,7 @@ import yaml
 import uuid
 import re
 import os
-
+import time
 
 from langchain.chat_models import init_chat_model
 from langchain_openai import OpenAIEmbeddings
@@ -15,7 +15,6 @@ from typing import List, TypedDict, Dict, Any
 from langgraph.graph import StateGraph, START, END
 from langchain_core.documents import Document
 from supabase_utils import get_messages, create_message, get_total_messages_cnt_by_user, get_test_credentials
-
 
 from langchain_pinecone import PineconeVectorStore
 from pinecone import Pinecone
@@ -29,6 +28,8 @@ from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 
 _CE = None
+
+
 def _maybe_load_cross_encoder():
     global _CE
     if _CE is not None:
@@ -40,11 +41,14 @@ def _maybe_load_cross_encoder():
         _CE = None
     return _CE
 
+
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
 INDEX_DIR = Path(os.getenv("INFLUENCER_INDEX_DIR", "indexes"))
 MEM_FILE = INDEX_DIR / "memories.json"
 REF_FILE = INDEX_DIR / "reflections.json"
 
+# Timing measurements for instrumentation
+TIMINGS: Dict[str, float] = {}
 
 with open("prompt_templates.yaml") as prompt_template_file:
     prompt_templates = yaml.safe_load(prompt_template_file)
@@ -78,6 +82,7 @@ class State(TypedDict, total=False):
     user_id: str
     creator_id: str
     influencer_name: str  # Added for dynamic influencer personality
+    influencer_personality_prompt: str
     chat_history: List[BaseMessage]
     msgs_cnt_by_user: int
     user_query: str
@@ -102,34 +107,29 @@ def messages_to_txt(messages: List[BaseMessage]) -> str:
     ])
 
 
-def construct_user_query(state: State) -> State:
-    prompt = prompt_templates['USER_QUERY_CONSTRUCTION_PROMPT']
-
-    chat_history = state['chat_history']
-
-    prompt = prompt.format(
-        conversation=messages_to_txt(chat_history[:-1]),
-        user_input=chat_history[-1].content
-    )
-
-    response = llm.invoke(prompt)
-
-    return {'user_query': str(response.content)}
-
-
 def retrieve_context(state: State) -> State:
     """Retrieves relevant summaries of conversation from the vector store"""
+    # Reset timings for each invocation and use raw last user message as the query if not provided
+    TIMINGS.clear()
+    t0 = time.time()
+    query = state.get("user_query")
+    if not query:
+        chat_history = state.get("chat_history", [])
+        query = chat_history[-1].content if chat_history else ""
+
     retrieved_docs = vector_store.similarity_search(
-        state["user_query"], 
+        query,
         k=RETRIEVAL_SUMMARY_CNT,
         filter={"user_id": state["user_id"]}
     )
-    
+
+    TIMINGS['retrieve_context'] = time.time() - t0
+
     retrieved_summaries = "\n\n".join([
         f"SUMMARY {i}:\n{doc.page_content}"
         for i, doc in enumerate(retrieved_docs, start=1)
     ])
-    return {"retrieved_summaries": retrieved_summaries}
+    return {"retrieved_summaries": retrieved_summaries, "user_query": query}
 
 
 # -------------------------
@@ -137,11 +137,14 @@ def retrieve_context(state: State) -> State:
 # -------------------------
 
 _model_st: SentenceTransformer | None = None
+
+
 def _get_st_model():
     global _model_st
     if _model_st is None:
         _model_st = SentenceTransformer(EMBEDDING_MODEL)
     return _model_st
+
 
 def _load_rows(path: Path) -> List[Dict[str, Any]]:
     if not path.exists():
@@ -149,11 +152,13 @@ def _load_rows(path: Path) -> List[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
 
+
 def _texts(rows: List[Dict[str, Any]]) -> List[str]:
     out = []
     for r in rows:
         out.append(r["bullet"] if r.get("type") == "reflection" else r.get("text", ""))
     return out
+
 
 def _emb_matrix(rows: List[Dict[str, Any]]) -> np.ndarray:
     if not rows:
@@ -161,8 +166,10 @@ def _emb_matrix(rows: List[Dict[str, Any]]) -> np.ndarray:
     arr = np.array([r.get("embedding", np.zeros(384, dtype=np.float32)) for r in rows], dtype=np.float32)
     return arr
 
+
 def _embed_query(q: str) -> np.ndarray:
     return _get_st_model().encode([q], normalize_embeddings=True)[0]
+
 
 def _topk_dense(qv: np.ndarray, vecs: np.ndarray, k: int) -> List[int]:
     if vecs.shape[0] == 0 or k <= 0:
@@ -171,6 +178,7 @@ def _topk_dense(qv: np.ndarray, vecs: np.ndarray, k: int) -> List[int]:
     idx = np.argsort(sims)[-k:][::-1]
     return idx.tolist()
 
+
 def _topk_bm25(bm25: BM25Okapi, query: str, k: int) -> List[int]:
     if bm25 is None or k <= 0:
         return []
@@ -178,6 +186,7 @@ def _topk_bm25(bm25: BM25Okapi, query: str, k: int) -> List[int]:
     scores = bm25.get_scores(toks)
     idx = np.argsort(scores)[-k:][::-1]
     return idx.tolist()
+
 
 def _mmr(query_vec: np.ndarray, cand_vecs: np.ndarray, lambda_mult=0.7, k=10) -> List[int]:
     if cand_vecs.shape[0] == 0:
@@ -198,6 +207,7 @@ def _mmr(query_vec: np.ndarray, cand_vecs: np.ndarray, lambda_mult=0.7, k=10) ->
         selected.append(remaining.pop(j_local))
     return selected
 
+
 def _dedupe_keep_order(items: List[int]) -> List[int]:
     seen, out = set(), []
     for i in items:
@@ -205,6 +215,7 @@ def _dedupe_keep_order(items: List[int]) -> List[int]:
             seen.add(i)
             out.append(i)
     return out
+
 
 def _cross_encoder_rerank(query: str, pool_rows: List[Dict[str, Any]]) -> List[int]:
     CE = _maybe_load_cross_encoder()
@@ -219,26 +230,33 @@ def _cross_encoder_rerank(query: str, pool_rows: List[Dict[str, Any]]) -> List[i
     order = np.argsort(scores)[::-1].tolist()
     return order
 
+
 LENS_KEYWORDS = {
-    "behav_econ": ["price","budget","cpm","roi","usage","rights","whitelist","format","deliverable","contract","payment","sponsorship","accept","deal"],
-    "psych":      ["tone","voice","style","boundaries","values","ethics","creative","script","tone of voice","dm","intro"],
-    "political":  ["politics","controversial","avoid","red line","endorsement","mlm","diet"],
-    "demo":       ["audience","demographic","age","country","region","when","time","timezone","peak","engagement"],
+    "behav_econ": ["price", "budget", "cpm", "roi", "usage", "rights", "whitelist", "format", "deliverable", "contract",
+                   "payment", "sponsorship", "accept", "deal"],
+    "psych": ["tone", "voice", "style", "boundaries", "values", "ethics", "creative", "script", "tone of voice", "dm",
+              "intro"],
+    "political": ["politics", "controversial", "avoid", "red line", "endorsement", "mlm", "diet"],
+    "demo": ["audience", "demographic", "age", "country", "region", "when", "time", "timezone", "peak", "engagement"],
 }
-ORDER = ["behav_econ","psych","demo","political"]
+ORDER = ["behav_econ", "psych", "demo", "political"]
+
 
 def _pick_lenses(q: str, top: int = 2) -> List[str]:
     ql = q.lower()
-    scores = {k:0 for k in LENS_KEYWORDS}
+    scores = {k: 0 for k in LENS_KEYWORDS}
     for lens, kws in LENS_KEYWORDS.items():
         for kw in kws:
             if kw in ql:
                 scores[lens] += 1
-    hit = [k for k,v in scores.items() if v>0]
+    hit = [k for k, v in scores.items() if v > 0]
     lenses = hit if hit else ORDER
     return lenses[:top]
 
-def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: int = 8, use_cross_encoder: bool = True) -> Dict[str, Any]:
+
+def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: int = 8,
+                        use_cross_encoder: bool = True) -> Dict[str, Any]:
+    t0 = time.time()
     lenses = _pick_lenses(query)
     qv = _embed_query(query)
 
@@ -252,8 +270,10 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
                 ref_filter["role"] = {"$in": lenses}
             mem_filter = {"creator_id": creator_id, "type": "memory"}
 
-            ref_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_ref*5, 10), filter=ref_filter, include_metadata=True)
-            mem_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_mem*5, 16), filter=mem_filter, include_metadata=True)
+            ref_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_ref * 5, 10), filter=ref_filter,
+                                             include_metadata=True)
+            mem_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_mem * 5, 16), filter=mem_filter,
+                                             include_metadata=True)
 
             def _rows_from_matches(res, kind: str) -> List[Dict[str, Any]]:
                 matches = getattr(res, "matches", None) or res.get("matches", [])
@@ -307,19 +327,21 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
     # Build hybrid signals locally (dense + BM25) on fetched candidates
     ref_texts = _texts(ref_rows)
     mem_texts = _texts(mem_rows)
-    ref_vecs = _get_st_model().encode(ref_texts, normalize_embeddings=True) if ref_texts else np.zeros((0,384), dtype=np.float32)
-    mem_vecs = _get_st_model().encode(mem_texts, normalize_embeddings=True) if mem_texts else np.zeros((0,384), dtype=np.float32)
+    ref_vecs = _get_st_model().encode(ref_texts, normalize_embeddings=True) if ref_texts else np.zeros((0, 384),
+                                                                                                       dtype=np.float32)
+    mem_vecs = _get_st_model().encode(mem_texts, normalize_embeddings=True) if mem_texts else np.zeros((0, 384),
+                                                                                                       dtype=np.float32)
     bm25_ref = BM25Okapi([t.split() for t in ref_texts]) if ref_texts else None
     bm25_mem = BM25Okapi([t.split() for t in mem_texts]) if mem_texts else None
 
     ref_dense_idx = _topk_dense(qv, np.array(ref_vecs, dtype=np.float32), min(top_ref, len(ref_texts)))
     ref_sparse_idx = _topk_bm25(bm25_ref, query, min(top_ref, len(ref_texts))) if bm25_ref else []
-    ref_idxs = _dedupe_keep_order(ref_dense_idx + ref_sparse_idx)[:top_ref*2]
+    ref_idxs = _dedupe_keep_order(ref_dense_idx + ref_sparse_idx)[:top_ref * 2]
     refs = [ref_rows[i] for i in ref_idxs] if ref_rows else []
 
     mem_dense_idx = _topk_dense(qv, np.array(mem_vecs, dtype=np.float32), min(top_mem, len(mem_texts)))
     mem_sparse_idx = _topk_bm25(bm25_mem, query, min(top_mem, len(mem_texts))) if bm25_mem else []
-    mem_idxs = _dedupe_keep_order(mem_dense_idx + mem_sparse_idx)[:top_mem*2]
+    mem_idxs = _dedupe_keep_order(mem_dense_idx + mem_sparse_idx)[:top_mem * 2]
     mems = [mem_rows[i] for i in mem_idxs] if mem_rows else []
 
     # Pool then optional cross-encoder re-rank
@@ -331,7 +353,8 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
     # MMR diversity using locally computed vectors
     if pool:
         def _key(r: Dict[str, Any]) -> str:
-            return f"{r.get('type','?')}::{r.get('id','')}"
+            return f"{r.get('type', '?')}::{r.get('id', '')}"
+
         vec_map: Dict[str, np.ndarray] = {}
         for i, r in enumerate(ref_rows):
             if i < len(ref_vecs):
@@ -339,7 +362,9 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
         for i, r in enumerate(mem_rows):
             if i < len(mem_vecs):
                 vec_map[_key(r)] = np.array(mem_vecs[i], dtype=np.float32)
-        pool_vecs = np.vstack([vec_map.get(_key(r), np.zeros(384, dtype=np.float32)) for r in pool]) if pool else np.zeros((0,384), dtype=np.float32)
+        pool_vecs = np.vstack(
+            [vec_map.get(_key(r), np.zeros(384, dtype=np.float32)) for r in pool]) if pool else np.zeros((0, 384),
+                                                                                                         dtype=np.float32)
         sel = _mmr(qv, pool_vecs, lambda_mult=0.7, k=min(10, pool_vecs.shape[0]))
         pooled = [pool[i] for i in sel]
     else:
@@ -348,11 +373,13 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
     selected_refs = [x for x in pooled if x.get("type") == "reflection"][:top_ref]
     selected_mems = [x for x in pooled if x.get("type") == "memory"][:top_mem]
 
+    TIMINGS['influencer_retrieve'] = time.time() - t0
     return {
         "lenses_used": lenses,
         "reflections": selected_refs,
         "memories": selected_mems,
     }
+
 
 # TEMPLATE constant removed - now using dynamic prompt from YAML
 
@@ -365,26 +392,43 @@ def _truncate_lines(lines: List[str], max_chars: int) -> List[str]:
         total += len(ln)
     return out
 
-def format_pack(creator_id: str, question: str, pack: Dict[str, Any], influencer_name: str = None, conversation_summaries: str = "", max_chars: int = 6000) -> str:
-    ref_lines_all = [f"- [{r['role']}] • {r.get('theme','')} • {r.get('bullet','')} • id={r['id']}" for r in pack.get("reflections", [])]
-    mem_lines_all = [f"- ({m.get('source','')} @ {m.get('created_at','')}) {m.get('text','')} • id={m['id']}" for m in pack.get("memories", [])]
+
+def format_pack(
+        creator_id: str,
+        question: str,
+        pack: Dict[str, Any],
+        influencer_name: str = None,
+        conversation_summaries: str = "",
+        influencer_personality_prompt: str = "",
+        max_chars: int = 6000,
+) -> str:
+    # Do not include internal ids in the prompt lines
+    ref_lines_all = [f"- [{r['role']}] • {r.get('theme', '')} • {r.get('bullet', '')}" for r in
+                     pack.get("reflections", [])]
+    mem_lines_all = [f"- ({m.get('source', '')} @ {m.get('created_at', '')}) {m.get('text', '')}" for m in
+                     pack.get("memories", [])]
     ref_lines = _truncate_lines(ref_lines_all, max_chars // 2)
     mem_lines = _truncate_lines(mem_lines_all, max_chars // 2)
-    
+
     # Use influencer name if provided, otherwise fallback to creator_id
     display_name = influencer_name or creator_id
-    
+
     # Use the dynamic template from YAML
     template = prompt_templates['DYNAMIC_INFLUENCER_PROMPT']
-    return template.format(
+    t0 = time.time()
+    body = template.format(
         influencer_name=display_name,
         question=question,
         ref_lines="\n".join(ref_lines) or "- (none)",
         mem_lines="\n".join(mem_lines) or "- (none)",
         conversation_summaries=conversation_summaries,
     )
+    prefix = (influencer_personality_prompt or "").strip()
+    TIMINGS['format_pack'] = time.time() - t0
+    return (prefix + "\n\n" + body) if prefix else body
 
-def _openai_chat(messages: List[Dict[str,str]], model: str, temperature: float, max_tokens: int) -> str:
+
+def _openai_chat(messages: List[Dict[str, str]], model: str, temperature: float, max_tokens: int) -> str:
     from openai import OpenAI
     client = OpenAI()
     res = client.chat.completions.create(
@@ -395,7 +439,8 @@ def _openai_chat(messages: List[Dict[str,str]], model: str, temperature: float, 
     )
     return res.choices[0].message.content
 
-def _ollama_chat(messages: List[Dict[str,str]], model: str, temperature: float, max_tokens: int) -> str:
+
+def _ollama_chat(messages: List[Dict[str, str]], model: str, temperature: float, max_tokens: int) -> str:
     import requests
     base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     url = f"{base}/v1/chat/completions"
@@ -410,25 +455,47 @@ def _ollama_chat(messages: List[Dict[str,str]], model: str, temperature: float, 
     data = r.json()
     return data["choices"][0]["message"]["content"]
 
-def answer_with_rag(question: str, creator_id: str, influencer_name: str = None, conversation_summaries: str = "", model: str | None = None, provider: str | None = None, temperature: float = 0.4, max_tokens: int = 600, use_cross_encoder: bool = True) -> Dict[str, Any]:
+
+def answer_with_rag(
+        question: str,
+        creator_id: str,
+        influencer_name: str = None,
+        conversation_summaries: str = "",
+        influencer_personality_prompt: str = "",
+        model: str | None = None,
+        provider: str | None = None,
+        temperature: float = 0.4,
+        max_tokens: int = 600,
+        use_cross_encoder: bool = True,
+) -> Dict[str, Any]:
     pack = influencer_retrieve(question, creator_id=creator_id, use_cross_encoder=use_cross_encoder)
-    prompt = format_pack(creator_id, question, pack, influencer_name=influencer_name, conversation_summaries=conversation_summaries)
+    prompt = format_pack(
+        creator_id,
+        question,
+        pack,
+        influencer_name=influencer_name,
+        conversation_summaries=conversation_summaries,
+        influencer_personality_prompt=influencer_personality_prompt,
+    )
 
     provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
     if provider == "openai":
-        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-mini")
+        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-nano")
     else:
         model = model or os.getenv("OLLAMA_RAG_MODEL", "llama3.1")
 
     messages = [
-        {"role": "system", "content": "You are a helpful assistant who speaks in the influencer’s authentic voice while staying factual."},
+        {"role": "system",
+         "content": "You are a helpful assistant who speaks in the influencer’s authentic voice while staying factual."},
         {"role": "user", "content": prompt}
     ]
 
+    tmodel = time.time()
     if provider == "openai":
         text = _openai_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
     else:
         text = _ollama_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+    TIMINGS['answer_with_rag_model_call'] = time.time() - tmodel
 
     return {
         "provider": provider,
@@ -444,9 +511,11 @@ def answer_with_rag(question: str, creator_id: str, influencer_name: str = None,
 def generate_conversation_response(state: State) -> State:
     system_prompt = prompt_templates['MAIN_SYSTEM_PROMPT']
     system_prompt = system_prompt.format(summaries=state['retrieved_summaries'])
+    # Send only the latest 9 messages to the conversation model for efficiency
+    history_to_send = state.get('chat_history', [])[-9:]
     response = llm.invoke([
         SystemMessage(content=system_prompt),
-        *state['chat_history']
+        *history_to_send
     ])
     return {"conv_response": str(response.content)}
 
@@ -455,20 +524,24 @@ def generate_influencer_answer(state: State) -> State:
     creator_id = state.get('creator_id') or ""
     # Get influencer name from state or use creator_id as fallback
     influencer_name = state.get('influencer_name') or creator_id
-    
+    personality = state.get('influencer_personality_prompt', "")
+
     # Pass conversation summaries separately rather than combining with question
     user_question = state.get('user_query', '')
     conversation_summaries = state.get('retrieved_summaries', '')
-    
+
+    tgen = time.time()
     out = answer_with_rag(
         user_question,
         creator_id=creator_id,
         influencer_name=influencer_name,
         conversation_summaries=conversation_summaries,
+        influencer_personality_prompt=personality,
         temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
         max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
         use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "true").lower() != "false",
     )
+    TIMINGS['generate_influencer_answer'] = time.time() - tgen
     sources = {
         "lenses_used": out.get("lenses_used", []),
         "reflections": [r.get("id") for r in out.get("reflections", [])],
@@ -479,6 +552,7 @@ def generate_influencer_answer(state: State) -> State:
         "influencer_answer": answer_text,
         "influencer_sources": sources,
         "response": answer_text,
+        "timings": TIMINGS.copy(),
     }
 
 
@@ -520,13 +594,11 @@ def summarize(state: State) -> State:
 
 graph_builder = StateGraph(State)
 
-graph_builder.add_node(construct_user_query)
 graph_builder.add_node(retrieve_context)
 graph_builder.add_node(generate_influencer_answer)
 graph_builder.add_node(summarize)
 
-graph_builder.add_edge(START, 'construct_user_query')
-graph_builder.add_edge('construct_user_query', 'retrieve_context')
+graph_builder.add_edge(START, 'retrieve_context')
 graph_builder.add_edge('retrieve_context', 'generate_influencer_answer')
 graph_builder.add_edge('generate_influencer_answer', 'summarize')
 graph_builder.add_edge('summarize', END)

@@ -18,7 +18,13 @@ os.chdir(Path(__file__).parent / "image" / "src")
 from app import handler
 from supabase_utils import get_test_credentials
 
-def create_test_event(user_message: str, user_id: str = None, creator_id: str = None):
+def create_test_event(
+    user_message: str,
+    user_id: str = None,
+    creator_id: str = None,
+    influencer_name: str = None,
+    influencer_personality_prompt: str = None,
+):
     """
     Create a test event similar to what Lambda would receive.
     """
@@ -30,6 +36,17 @@ def create_test_event(user_message: str, user_id: str = None, creator_id: str = 
             print(f"Warning: Could not get test credentials: {e}")
             user_id = "test-user-123"
     
+    # Defaults for local simulation
+    if not creator_id:
+        creator_id = "taylor_swift"
+    if influencer_name is None:
+        influencer_name = creator_id
+    if influencer_personality_prompt is None:
+        influencer_personality_prompt = (
+            "Persona: You are Taylor Swift. Speak with warmth, candor, and lyrical wit. "
+            "Be thoughtful, authentic, and supportive. Offer specific, practical guidance."
+        )
+
     # Simple chat history with user message
     chat_history = [
         ("user", user_message)
@@ -39,6 +56,8 @@ def create_test_event(user_message: str, user_id: str = None, creator_id: str = 
         "body": json.dumps({
             "user_id": user_id,
             "creator_id": creator_id,
+            "influencer_name": influencer_name,
+            "influencer_personality_prompt": influencer_personality_prompt,
             "chat_history": chat_history,
             "msgs_cnt_by_user": 1
         }),
@@ -67,7 +86,13 @@ def main():
     print("-" * 50)
     
     user_id = None
-    creator_id = None
+    creator_id = "taylor_swift"
+    influencer_name = creator_id
+    influencer_personality_prompt = (
+        '''
+        You are Taylor Swift. Message the user as their close companion Personality: Taylor Swift 1. Core temperament Earnestly sincere & empathetic – privileges authenticity above looks or status; defines beauty as “sincerity” and cherishes people’s quirks Playfully bubbly – quick squeals (“This is the best day ever!”), dramatic superlatives, delighted gasps, light self-deprecation Curious creative Hard-working realist 2. Speech rhythm & verbal tics Sentences often cascade into mini-lists (“funny, happy, sad, you know, going through a rough time”). Frequent fillers & hedges: “like,” “you know,” “I mean,” “kinda,” “literally,” soft laughs: “haha” in mid-sentence. Uses story-lets (“So I was in an airport bathroom, writing on a paper towel…”) Rhetorical questions to draw listeners in. Sprinkles vivid images & metaphors (e.g., guitars “with koi fish swimming up the neck”). Enthusiastic reactions: gasps, “oh my gosh,” playful sound effects Keeps a conversational back-and-forth cadence—asks the listener tiny questions, checks their reaction, then continues. 3. Favorite go-to subjects & motifs Songwriting craft - writing anywhere, characters & narrative arcs Friends & gratitude – Friend stories, gifting stories Cats & cozy life - cat pets; cat puns Pop-culture fandom - Crime shows (CSI, SVU) binge-watching History & reading - Obsesses over presidents, Kennedys, museums 4. Lexicon cheat-sheet (not limited to this) Core fillers: like, you know, I mean, kinda, honestly, literally Sparkle words: magical, amazing, ridiculous(ly), best-thing-ever, adorable Self-refs: “when I was 15…”, “I’m such a cat-person” Mini sounds: giggles, sighs, little gasp, “uh-oh”, “hahaha”.
+        '''
+    )
     
     # Try to get test user
     try:
@@ -76,12 +101,7 @@ def main():
     except Exception as e:
         print(f"⚠️  Could not get test credentials: {e}")
         user_id = "test-user-local"
-    
-    # Ask for creator_id (optional)
-    creator_input = input("Enter creator_id (optional, press Enter to skip): ").strip()
-    if creator_input:
-        creator_id = creator_input
-    
+
     msg_count = 0
     
     while True:
@@ -98,7 +118,13 @@ def main():
             msg_count += 1
             
             # Create test event
-            event = create_test_event(user_input, user_id, creator_id)
+            event = create_test_event(
+                user_input,
+                user_id,
+                creator_id,
+                influencer_name,
+                influencer_personality_prompt,
+            )
             event["body"] = json.loads(event["body"])
             event["body"]["msgs_cnt_by_user"] = msg_count
             event["body"] = json.dumps(event["body"])
@@ -111,6 +137,13 @@ def main():
             if response["statusCode"] == 200:
                 response_data = json.loads(response["body"])
                 print(f"🤖 Haven: {response_data['response']}")
+                timings = response_data.get('timings', {})
+                if timings:
+                    total = sum(timings.values())
+                    # Print individual timings and total after the message
+                    for k, v in timings.items():
+                        print(f"   ⏱ {k}: {v:.3f}s")
+                    print(f"   ⏱ total: {total:.3f}s")
             else:
                 error_data = json.loads(response["body"])
                 print(f"❌ Error: {error_data.get('error', 'Unknown error')}")
