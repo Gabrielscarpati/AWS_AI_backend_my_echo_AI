@@ -26,6 +26,8 @@ from pathlib import Path
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
+from functools import lru_cache
+import httpx
 
 _CE = None
 
@@ -61,7 +63,8 @@ PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
 RETRIEVAL_SUMMARY_CNT = 3
 CONVERSATION_SUMMARY_THRESHOLD = 10
-PAST_CHAT_HISTORY_CNT = 19
+# Number of recent chat messages to send to models (configurable via env)
+PAST_CHAT_HISTORY_CNT = 9
 EMBEDDING_DIMENSION = 1024
 
 llm = init_chat_model("gpt-4.1-mini", model_provider="openai")
@@ -91,7 +94,6 @@ class State(TypedDict, total=False):
     influencer_answer: str
     influencer_sources: Dict[str, Any]
     response: str
-    is_summary_turn: bool
     message_summary: str
     summary_generated: bool
 
@@ -136,13 +138,10 @@ def retrieve_context(state: State) -> State:
 # Influencer RAG helpers (retrieve + prompt assembly + generation)
 # -------------------------
 
-_model_st: SentenceTransformer | None = None
+_model_st: SentenceTransformer = SentenceTransformer(EMBEDDING_MODEL)
 
 
-def _get_st_model():
-    global _model_st
-    if _model_st is None:
-        _model_st = SentenceTransformer(EMBEDDING_MODEL)
+def _get_st_model() -> SentenceTransformer:
     return _model_st
 
 
@@ -217,6 +216,17 @@ def _dedupe_keep_order(items: List[int]) -> List[int]:
     return out
 
 
+def _dedupe_rows_keep_order(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen, out = set(), []
+    for r in rows:
+        key = f"{r.get('type', '?')}::{r.get('id', '')}"
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(r)
+    return out
+
+
 def _cross_encoder_rerank(query: str, pool_rows: List[Dict[str, Any]]) -> List[int]:
     CE = _maybe_load_cross_encoder()
     if CE is None or not pool_rows:
@@ -255,7 +265,7 @@ def _pick_lenses(q: str, top: int = 2) -> List[str]:
 
 
 def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: int = 8,
-                        use_cross_encoder: bool = True) -> Dict[str, Any]:
+                        use_cross_encoder: bool = False) -> Dict[str, Any]:
     t0 = time.time()
     lenses = _pick_lenses(query)
     qv = _embed_query(query)
@@ -264,51 +274,65 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
         if influencer_index is None:
             return None
         try:
-            # Fetch a wider candidate pool by type; then hybrid re-rank locally
-            ref_filter = {"creator_id": creator_id, "type": "reflection"}
+            # Single query with OR filter; fetch a wider pool then partition locally
+            ref_clause: Dict[str, Any] = {"type": "reflection"}
             if lenses:
-                ref_filter["role"] = {"$in": lenses}
-            mem_filter = {"creator_id": creator_id, "type": "memory"}
+                ref_clause["role"] = {"$in": lenses}
 
-            ref_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_ref * 5, 10), filter=ref_filter,
-                                             include_metadata=True)
-            mem_res = influencer_index.query(vector=qv.tolist(), top_k=max(top_mem * 5, 16), filter=mem_filter,
-                                             include_metadata=True)
+            combined_filter: Dict[str, Any] = {
+                "creator_id": creator_id,
+                "$or": [
+                    ref_clause,
+                    {"type": "memory"}
+                ]
+            }
 
-            def _rows_from_matches(res, kind: str) -> List[Dict[str, Any]]:
-                matches = getattr(res, "matches", None) or res.get("matches", [])
-                rows: List[Dict[str, Any]] = []
-                for m in matches:
-                    md = getattr(m, "metadata", None) or m.get("metadata", {})
-                    rid = getattr(m, "id", None) or m.get("id")
-                    if kind == "reflection":
-                        rows.append({
-                            "type": "reflection",
-                            "id": rid,
-                            "creator_id": md.get("creator_id"),
-                            "role": md.get("role"),
-                            "theme": md.get("theme"),
-                            "bullet": md.get("bullet", ""),
-                            "source_ids": md.get("source_ids", []),
-                            "created_at": md.get("created_at"),
-                        })
-                    else:
-                        rows.append({
-                            "type": "memory",
-                            "id": rid,
-                            "creator_id": md.get("creator_id"),
-                            "text": md.get("text", ""),
-                            "source": md.get("source"),
-                            "platform": md.get("platform"),
-                            "url": md.get("url"),
-                            "created_at": md.get("created_at"),
-                            "topics": md.get("topics", []),
-                            "privacy_level": md.get("privacy_level"),
-                        })
-                return rows
+            # BOTTLENECK #1 FIX: Reduce top_k and remove vectors from payload
+            pinecone_top_k = min(24, max(top_ref * 3 + top_mem * 3, 16))
+            all_res = influencer_index.query(
+                vector=qv.tolist(),
+                top_k=pinecone_top_k,
+                filter=combined_filter,
+                include_metadata=True,
+                include_values=False,  # <-- BIG CHANGE
+            )
 
-            ref_rows = _rows_from_matches(ref_res, "reflection")
-            mem_rows = _rows_from_matches(mem_res, "memory")
+            matches = getattr(all_res, "matches", None) or all_res.get("matches", [])
+            ref_rows: List[Dict[str, Any]] = []
+            mem_rows: List[Dict[str, Any]] = []
+
+            for m in matches:
+                md = getattr(m, "metadata", None) or m.get("metadata", {})
+                rid = getattr(m, "id", None) or m.get("id")
+                # vals = getattr(m, "values", None) or m.get("values") # No longer fetching values
+                mtype = md.get("type")
+                if mtype == "reflection":
+                    ref_rows.append({
+                        "type": "reflection",
+                        "id": rid,
+                        "creator_id": md.get("creator_id"),
+                        "role": md.get("role"),
+                        "theme": md.get("theme"),
+                        "bullet": md.get("bullet", ""),
+                        "source_ids": md.get("source_ids", []),
+                        "created_at": md.get("created_at"),
+                        # "embedding": vals, # No longer fetching values
+                    })
+                elif mtype == "memory":
+                    mem_rows.append({
+                        "type": "memory",
+                        "id": rid,
+                        "creator_id": md.get("creator_id"),
+                        "text": md.get("text", ""),
+                        "source": md.get("source"),
+                        "platform": md.get("platform"),
+                        "url": md.get("url"),
+                        "created_at": md.get("created_at"),
+                        "topics": md.get("topics", []),
+                        "privacy_level": md.get("privacy_level"),
+                        # "embedding": vals, # No longer fetching values
+                    })
+
             return {"ref_rows": ref_rows, "mem_rows": mem_rows}
         except Exception:
             return None
@@ -324,54 +348,45 @@ def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: 
     ref_rows = fetched["ref_rows"]
     mem_rows = fetched["mem_rows"]
 
-    # Build hybrid signals locally (dense + BM25) on fetched candidates
+    # The returned docs from pinecone are already dense-ranked. We can use that ordering.
     ref_texts = _texts(ref_rows)
     mem_texts = _texts(mem_rows)
-    ref_vecs = _get_st_model().encode(ref_texts, normalize_embeddings=True) if ref_texts else np.zeros((0, 384),
-                                                                                                       dtype=np.float32)
-    mem_vecs = _get_st_model().encode(mem_texts, normalize_embeddings=True) if mem_texts else np.zeros((0, 384),
-                                                                                                       dtype=np.float32)
-    bm25_ref = BM25Okapi([t.split() for t in ref_texts]) if ref_texts else None
-    bm25_mem = BM25Okapi([t.split() for t in mem_texts]) if mem_texts else None
+    
+    # Dense results are the rows in the order returned by Pinecone
+    ref_dense = ref_rows 
+    mem_dense = mem_rows
 
-    ref_dense_idx = _topk_dense(qv, np.array(ref_vecs, dtype=np.float32), min(top_ref, len(ref_texts)))
+    # Sparse results from BM25
+    bm25_ref = BM25Okapi([t.split() for t in ref_texts]) if len(ref_texts) >= 10 else None
+    bm25_mem = BM25Okapi([t.split() for t in mem_texts]) if len(mem_texts) >= 10 else None
+    
     ref_sparse_idx = _topk_bm25(bm25_ref, query, min(top_ref, len(ref_texts))) if bm25_ref else []
-    ref_idxs = _dedupe_keep_order(ref_dense_idx + ref_sparse_idx)[:top_ref * 2]
-    refs = [ref_rows[i] for i in ref_idxs] if ref_rows else []
-
-    mem_dense_idx = _topk_dense(qv, np.array(mem_vecs, dtype=np.float32), min(top_mem, len(mem_texts)))
+    ref_sparse = [ref_rows[i] for i in ref_sparse_idx]
+    
     mem_sparse_idx = _topk_bm25(bm25_mem, query, min(top_mem, len(mem_texts))) if bm25_mem else []
-    mem_idxs = _dedupe_keep_order(mem_dense_idx + mem_sparse_idx)[:top_mem * 2]
-    mems = [mem_rows[i] for i in mem_idxs] if mem_rows else []
+    mem_sparse = [mem_rows[i] for i in mem_sparse_idx]
+
+    # Combine dense and sparse results
+    # This is a simplified RRF, prioritizing dense results.
+    combined_refs = _dedupe_rows_keep_order(ref_dense + ref_sparse)
+    combined_mems = _dedupe_rows_keep_order(mem_dense + mem_sparse)
+    
+    refs = combined_refs[:top_ref * 2]
+    mems = combined_mems[:top_mem * 2]
 
     # Pool then optional cross-encoder re-rank
     pool = refs + mems
+    
+    # BOTTLENECK #3 FIX: Cap pool size before reranking
     if use_cross_encoder and pool:
+        pool = pool[:12] # Cap the pool to a reasonable size for the cross-encoder
         ce_order = _cross_encoder_rerank(query, pool)
         pool = [pool[i] for i in ce_order]
 
-    # MMR diversity using locally computed vectors
-    if pool:
-        def _key(r: Dict[str, Any]) -> str:
-            return f"{r.get('type', '?')}::{r.get('id', '')}"
-
-        vec_map: Dict[str, np.ndarray] = {}
-        for i, r in enumerate(ref_rows):
-            if i < len(ref_vecs):
-                vec_map[_key(r)] = np.array(ref_vecs[i], dtype=np.float32)
-        for i, r in enumerate(mem_rows):
-            if i < len(mem_vecs):
-                vec_map[_key(r)] = np.array(mem_vecs[i], dtype=np.float32)
-        pool_vecs = np.vstack(
-            [vec_map.get(_key(r), np.zeros(384, dtype=np.float32)) for r in pool]) if pool else np.zeros((0, 384),
-                                                                                                         dtype=np.float32)
-        sel = _mmr(qv, pool_vecs, lambda_mult=0.7, k=min(10, pool_vecs.shape[0]))
-        pooled = [pool[i] for i in sel]
-    else:
-        pooled = []
-
-    selected_refs = [x for x in pooled if x.get("type") == "reflection"][:top_ref]
-    selected_mems = [x for x in pooled if x.get("type") == "memory"][:top_mem]
+    # MMR step removed as it requires vectors, which we are no longer fetching.
+    
+    selected_refs = [x for x in pool if x.get("type") == "reflection"][:top_ref]
+    selected_mems = [x for x in pool if x.get("type") == "memory"][:top_mem]
 
     TIMINGS['influencer_retrieve'] = time.time() - t0
     return {
@@ -400,6 +415,7 @@ def format_pack(
         influencer_name: str = None,
         conversation_summaries: str = "",
         influencer_personality_prompt: str = "",
+        recent_chat_history: List[BaseMessage] = None,
         max_chars: int = 6000,
 ) -> str:
     # Do not include internal ids in the prompt lines
@@ -413,6 +429,18 @@ def format_pack(
     # Use influencer name if provided, otherwise fallback to creator_id
     display_name = influencer_name or creator_id
 
+    # Format recent chat history
+    recent_history_text = ""
+    if recent_chat_history:
+        history_lines = []
+        for msg in recent_chat_history:
+            role = "USER" if msg.type == "human" else "ASSISTANT"
+            history_lines.append(f"{role}: {msg.content}")
+        recent_history_text = "\n".join(history_lines)
+    
+    if not recent_history_text:
+        recent_history_text = "(no recent chat history)"
+
     # Use the dynamic template from YAML
     template = prompt_templates['DYNAMIC_INFLUENCER_PROMPT']
     t0 = time.time()
@@ -422,6 +450,7 @@ def format_pack(
         ref_lines="\n".join(ref_lines) or "- (none)",
         mem_lines="\n".join(mem_lines) or "- (none)",
         conversation_summaries=conversation_summaries,
+        recent_chat_history=recent_history_text,
     )
     prefix = (influencer_personality_prompt or "").strip()
     TIMINGS['format_pack'] = time.time() - t0
@@ -462,6 +491,7 @@ def answer_with_rag(
         influencer_name: str = None,
         conversation_summaries: str = "",
         influencer_personality_prompt: str = "",
+        recent_chat_history: List[BaseMessage] = None,
         model: str | None = None,
         provider: str | None = None,
         temperature: float = 0.4,
@@ -476,6 +506,7 @@ def answer_with_rag(
         influencer_name=influencer_name,
         conversation_summaries=conversation_summaries,
         influencer_personality_prompt=influencer_personality_prompt,
+        recent_chat_history=recent_chat_history,
     )
 
     provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
@@ -511,8 +542,8 @@ def answer_with_rag(
 def generate_conversation_response(state: State) -> State:
     system_prompt = prompt_templates['MAIN_SYSTEM_PROMPT']
     system_prompt = system_prompt.format(summaries=state['retrieved_summaries'])
-    # Send only the latest 9 messages to the conversation model for efficiency
-    history_to_send = state.get('chat_history', [])[-9:]
+    # Send only the latest configured messages to the conversation model for efficiency
+    history_to_send = state.get('chat_history', [])[-PAST_CHAT_HISTORY_CNT:]
     response = llm.invoke([
         SystemMessage(content=system_prompt),
         *history_to_send
@@ -529,6 +560,13 @@ def generate_influencer_answer(state: State) -> State:
     # Pass conversation summaries separately rather than combining with question
     user_question = state.get('user_query', '')
     conversation_summaries = state.get('retrieved_summaries', '')
+    
+    # Get recent chat history excluding the current user message to avoid duplication with User question
+    full_chat_history = state.get('chat_history', [])
+    if full_chat_history and getattr(full_chat_history[-1], 'type', '') == 'human':
+        recent_chat_history = full_chat_history[:-1][-PAST_CHAT_HISTORY_CNT:]
+    else:
+        recent_chat_history = full_chat_history[-PAST_CHAT_HISTORY_CNT:]
 
     tgen = time.time()
     out = answer_with_rag(
@@ -537,9 +575,10 @@ def generate_influencer_answer(state: State) -> State:
         influencer_name=influencer_name,
         conversation_summaries=conversation_summaries,
         influencer_personality_prompt=personality,
+        recent_chat_history=recent_chat_history,
         temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
         max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
-        use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "true").lower() != "false",
+        use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
     )
     TIMINGS['generate_influencer_answer'] = time.time() - tgen
     sources = {
@@ -557,11 +596,12 @@ def generate_influencer_answer(state: State) -> State:
 
 
 def summarize(state: State) -> State:
-    # Prefer explicit frontend flag; otherwise fallback to modulo logic
-    is_summary_turn = state.get('is_summary_turn')
-    if is_summary_turn is None:
-        msgs_cnt_by_user = state.get('msgs_cnt_by_user', 0)
-        is_summary_turn = msgs_cnt_by_user > 0 and (msgs_cnt_by_user % CONVERSATION_SUMMARY_THRESHOLD == 0)
+    # Always use modulo-based logic: summarize when user's message count hits multiples of threshold
+    try:
+        msgs_cnt_by_user = int(state.get('msgs_cnt_by_user', 0))
+    except Exception:
+        msgs_cnt_by_user = 0
+    is_summary_turn = msgs_cnt_by_user > 0 and (msgs_cnt_by_user % CONVERSATION_SUMMARY_THRESHOLD == 0)
 
     if not is_summary_turn:
         return {"summary_generated": False, "message_summary": ""}
@@ -604,3 +644,13 @@ graph_builder.add_edge('generate_influencer_answer', 'summarize')
 graph_builder.add_edge('summarize', END)
 
 chatbot_clio = graph_builder.compile()
+
+'''
+response: Hey! I’m doing well, thanks for asking. How about you?
+timings: {
+{
+'response': 'Hey there! Just saying hi, huh? Love it.', 
+'summary_generated': False,
+ 'message_summary': '', 
+ 'timings': {'retrieve_context': 0.9832887649536133, 'influencer_retrieve': 2.7580978870391846, 'format_pack': 8.821487426757812e-06, 'answer_with_rag_model_call': 0.7920141220092773, 'generate_influencer_answer': 3.5502140522003174}, 'timings_total': 8.08362364768982}
+'''

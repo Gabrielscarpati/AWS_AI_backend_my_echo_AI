@@ -12,6 +12,7 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * `npx cdk deploy`  deploy this stack to your default AWS account/region
 * `npx cdk diff`    compare deployed stack with current state
 * `npx cdk synth`   emits the synthesized CloudFormation template
+/Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/venv/bin/python /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/local_test.py
 
 
 
@@ -42,3 +43,18 @@ for m in data.get("memories", []):
 
 upload_records(records)
 PY
+
+export AWS_REGION=us-east-1
+export ACCOUNT_ID=827138162380
+export REPO_NAME=influencer-brain-api
+export IMAGE_TAG=latest && \
+
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 827138162380.dkr.ecr.us-east-1.amazonaws.com && \
+
+docker buildx build --platform linux/amd64 -t influencer-brain-api:latest /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/image && \
+
+docker tag influencer-brain-api:latest 827138162380.dkr.ecr.us-east-1.amazonaws.com/influencer-brain-api:latest && \
+
+docker push 827138162380.dkr.ecr.us-east-1.amazonaws.com/influencer-brain-api:latest && \
+
+aws ecs update-service --cluster influencer-brain --service influencer-brain-task-service-wepvg641 --force-new-deployment --region us-east-1

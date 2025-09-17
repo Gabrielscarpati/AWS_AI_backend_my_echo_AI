@@ -1,13 +1,21 @@
-FROM public.ecr.aws/lambda/python:3.10
+FROM python:3.10-slim
 
-COPY requirements.txt .
+# System deps (optional, kept minimal)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip install -r requirements.txt
+WORKDIR /app
 
-COPY src/.env .
-COPY src/app.py .
-COPY src/chatbot_clio.py .
-COPY src/prompt_templates.yaml .
-COPY src/supabase_utils.py .
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["app.handler"]
+# Copy application source
+COPY src/ ./
+
+# App Runner expects the container to listen on port 8080 by default
+ENV PORT=8080
+EXPOSE 8080
+
+# Start the FastAPI server
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers"]

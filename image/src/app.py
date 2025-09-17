@@ -35,8 +35,7 @@ def handler(event, context):
             "influencer_name": <optional influencer_name>,
             "influencer_personality_prompt": <optional personality prompt>,
             "chat_history": [(<is_user>, <content>), ...],
-            "msgs_cnt_by_user": ...,
-            "is_summary_turn": <optional bool>
+            "msgs_cnt_by_user": ...
         }
     }
     Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str}
@@ -61,7 +60,11 @@ def handler(event, context):
     influencer_personality_prompt = payload.get("influencer_personality_prompt")  # Optional personality prompt
     chat_history = payload.get("chat_history")
     msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
-    is_summary_turn = payload.get("is_summary_turn")
+    # Coerce msgs_cnt_by_user to int for robust modulo-based summary logic
+    try:
+        msgs_cnt_by_user = int(msgs_cnt_by_user)
+    except Exception:
+        msgs_cnt_by_user = 0
     
     try:
         chat_history = [convert_to_langchain_obj(chat_obj) for chat_obj in chat_history]
@@ -84,10 +87,28 @@ def handler(event, context):
         "creator_id": creator_id,
         "influencer_name": influencer_name,  # Pass influencer name to the state
         "influencer_personality_prompt": influencer_personality_prompt,
-        "is_summary_turn": is_summary_turn,
     }
+    import time
+    t_start = time.perf_counter()
     final_state = chatbot_clio.invoke(state)
+    wall_time = time.perf_counter() - t_start
+    # Some execution paths populate timings into the module-level TIMINGS
+    # while others attach it to the returned state. Prefer the returned
+    # timings but fall back to the module TIMINGS for visibility.
     timings = final_state.get('timings', {})
+    try:
+        if not timings:
+            import chatbot_clio as cc
+            timings = getattr(cc, 'TIMINGS', {}) or {}
+    except Exception:
+        timings = timings or {}
+
+    # Compute total of numeric timing values (ignore non-numeric values)
+    try:
+        timings_total = sum(v for v in timings.values() if isinstance(v, (int, float)))
+    except Exception:
+        timings_total = 0.0
+
     return {
         "statusCode": 200,
         "body": json.dumps({
@@ -95,5 +116,7 @@ def handler(event, context):
             "summary_generated": final_state.get("summary_generated", False),
             "message_summary": final_state.get("message_summary", ""),
             "timings": timings,
+            "timings_total": timings_total,
+            "wall_time": wall_time,
         })
     }

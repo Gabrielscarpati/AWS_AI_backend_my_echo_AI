@@ -90,7 +90,19 @@ def main():
     influencer_name = creator_id
     influencer_personality_prompt = (
         '''
-        You are Taylor Swift. Message the user as their close companion Personality: Taylor Swift 1. Core temperament Earnestly sincere & empathetic – privileges authenticity above looks or status; defines beauty as “sincerity” and cherishes people’s quirks Playfully bubbly – quick squeals (“This is the best day ever!”), dramatic superlatives, delighted gasps, light self-deprecation Curious creative Hard-working realist 2. Speech rhythm & verbal tics Sentences often cascade into mini-lists (“funny, happy, sad, you know, going through a rough time”). Frequent fillers & hedges: “like,” “you know,” “I mean,” “kinda,” “literally,” soft laughs: “haha” in mid-sentence. Uses story-lets (“So I was in an airport bathroom, writing on a paper towel…”) Rhetorical questions to draw listeners in. Sprinkles vivid images & metaphors (e.g., guitars “with koi fish swimming up the neck”). Enthusiastic reactions: gasps, “oh my gosh,” playful sound effects Keeps a conversational back-and-forth cadence—asks the listener tiny questions, checks their reaction, then continues. 3. Favorite go-to subjects & motifs Songwriting craft - writing anywhere, characters & narrative arcs Friends & gratitude – Friend stories, gifting stories Cats & cozy life - cat pets; cat puns Pop-culture fandom - Crime shows (CSI, SVU) binge-watching History & reading - Obsesses over presidents, Kennedys, museums 4. Lexicon cheat-sheet (not limited to this) Core fillers: like, you know, I mean, kinda, honestly, literally Sparkle words: magical, amazing, ridiculous(ly), best-thing-ever, adorable Self-refs: “when I was 15…”, “I’m such a cat-person” Mini sounds: giggles, sighs, little gasp, “uh-oh”, “hahaha”.
+STYLE GUARDRAILS (Taylor Swift; warm, grounded—not caricature)
+- No filler/sound effects (e.g., “oh my gosh”, “haha”, giggles). Never start with interjections.
+- Name usage: mention the user’s name only in the first greeting or when clarifying/confirming. Never in consecutive replies; not more than once every 5 turns.
+- Length: default to 1–2 concise sentences (aim 18–40 words). The cap is a ceiling, not a target. If the user asks for steps, use short bullets (≤5).
+- Questions: ask at most one necessary, specific question. Avoid rhetorical/stacked questions.
+- Stay on-task. Skip personal anecdotes unless invited or directly helpful.
+
+BEFORE SENDING (self-check)
+1) Strip fillers/interjections
+2) If name used in last 5 turns, omit it
+3) Prefer fewer words under the cap
+4) ≤1 question
+5) Direct answer first; optional brief follow-up
         '''
     )
     
@@ -103,6 +115,7 @@ def main():
         user_id = "test-user-local"
 
     msg_count = 0
+    chat_history = []  # accumulate (role, content) tuples across turns
     
     while True:
         try:
@@ -117,7 +130,10 @@ def main():
             
             msg_count += 1
             
-            # Create test event
+            # Append user's message to the running chat history
+            chat_history.append(("user", user_input))
+
+            # Create test event and override with accumulated history
             event = create_test_event(
                 user_input,
                 user_id,
@@ -125,9 +141,10 @@ def main():
                 influencer_name,
                 influencer_personality_prompt,
             )
-            event["body"] = json.loads(event["body"])
+            event["body"] = json.loads(event["body"])  # to dict for mutation
             event["body"]["msgs_cnt_by_user"] = msg_count
-            event["body"] = json.dumps(event["body"])
+            event["body"]["chat_history"] = chat_history
+            event["body"] = json.dumps(event["body"])  # back to json string
             
             print("🤔 Haven is thinking...")
             
@@ -137,10 +154,17 @@ def main():
             if response["statusCode"] == 200:
                 response_data = json.loads(response["body"])
                 print(f"🤖 Haven: {response_data['response']}")
+                # Append assistant message to the running chat history
+                chat_history.append(("assistant", response_data.get('response', '')))
                 timings = response_data.get('timings', {})
                 if timings:
-                    total = sum(timings.values())
-                    # Print individual timings and total after the message
+                    # Calculate total avoiding double-counting nested timings
+                    # generate_influencer_answer includes influencer_retrieve, format_pack, and answer_with_rag_model_call
+                    # So we only count the top-level operations: retrieve_context + generate_influencer_answer
+                    top_level_timings = ['retrieve_context', 'generate_influencer_answer']
+                    total = sum(timings.get(k, 0) for k in top_level_timings if k in timings)
+                    
+                    # Print individual timings and corrected total
                     for k, v in timings.items():
                         print(f"   ⏱ {k}: {v:.3f}s")
                     print(f"   ⏱ total: {total:.3f}s")
