@@ -47,10 +47,8 @@ def create_test_event(
             "Be thoughtful, authentic, and supportive. Offer specific, practical guidance."
         )
 
-    # Simple chat history with user message
-    chat_history = [
-        ("user", user_message)
-    ]
+    # Simple chat history with user message - use plain text format
+    chat_history = [user_message]
     
     event = {
         "body": json.dumps({
@@ -122,7 +120,7 @@ BEFORE SENDING (self-check)
         user_id = "test-user-local2"
 
     msg_count = 0
-    chat_history = []  # accumulate (role, content) tuples across turns
+    chat_history = []  # accumulate plain text messages across turns
     
     while True:
         try:
@@ -137,8 +135,8 @@ BEFORE SENDING (self-check)
             
             msg_count += 1
             
-            # Append user's message to the running chat history
-            chat_history.append(("user", user_input))
+            # Append user's message to the running chat history as plain text
+            chat_history.append(user_input)
 
             # Create test event and override with accumulated history
             event = create_test_event(
@@ -161,8 +159,8 @@ BEFORE SENDING (self-check)
             if response["statusCode"] == 200:
                 response_data = json.loads(response["body"])
                 print(f"🤖 Haven: {response_data['response']}")
-                # Append assistant message to the running chat history
-                chat_history.append(("assistant", response_data.get('response', '')))
+                # Append assistant message to the running chat history as plain text
+                chat_history.append(response_data.get('response', ''))
                 timings = response_data.get('timings', {})
                 if timings:
                     # Calculate total avoiding double-counting nested timings

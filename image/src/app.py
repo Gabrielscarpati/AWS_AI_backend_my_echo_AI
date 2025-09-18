@@ -12,19 +12,6 @@ load_dotenv()
 from chatbot_clio import PATTERN_USER
 
 
-def convert_to_langchain_obj(message):
-    """
-    message: (<role>, <content>)
-    """
-    base_message_class = {
-        'user': HumanMessage,
-        'assistant': AIMessage
-    }
-    
-    role, content = message
-    return base_message_class[role](content)
-
-
 def handler(event, context):
     """
     Expects event = {
@@ -34,7 +21,7 @@ def handler(event, context):
             "creator_id": <creator_id>,
             "influencer_name": <optional influencer_name>,
             "influencer_personality_prompt": <optional personality prompt>,
-            "chat_history": [(<is_user>, <content>), ...],
+            "chat_history": [<plain_text_message>, ...],  # Changed to plain text
             "msgs_cnt_by_user": ...
         }
     }
@@ -58,26 +45,23 @@ def handler(event, context):
     creator_id = payload.get("creator_id")
     influencer_name = payload.get("influencer_name")  # Optional influencer name from frontend
     influencer_personality_prompt = payload.get("influencer_personality_prompt")  # Optional personality prompt
-    chat_history = payload.get("chat_history")
+    chat_history_texts = payload.get("chat_history", [])  # List of plain text messages
     msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
+    
+    # Convert plain text messages to LangChain message objects
+    # Assume all messages are from user for simplicity
+    chat_history = [HumanMessage(content=text) for text in chat_history_texts]
+    
     # Coerce msgs_cnt_by_user to int for robust modulo-based summary logic
     try:
         msgs_cnt_by_user = int(msgs_cnt_by_user)
     except Exception:
         msgs_cnt_by_user = 0
     
-    try:
-        chat_history = [convert_to_langchain_obj(chat_obj) for chat_obj in chat_history]
-    except:
-        return {
-            "statusCode": 400,
-            "body": json.dumps({"error": "chat_history not properly formatted"})
-        }
-    
     if not user_id or not chat_history:
         return {
             "statusCode": 400,
-            "body": json.dumps({"error": "user_id, chat_history and msgs_cnt_by_user required"})
+            "body": json.dumps({"error": "user_id and chat_history required"})
         }
     
     state = {
@@ -85,9 +69,10 @@ def handler(event, context):
         "chat_history": chat_history,
         "msgs_cnt_by_user": msgs_cnt_by_user,
         "creator_id": creator_id,
-        "influencer_name": influencer_name,  # Pass influencer name to the state
+        "influencer_name": influencer_name,
         "influencer_personality_prompt": influencer_personality_prompt,
     }
+    
     import time
     t_start = time.perf_counter()
     final_state = chatbot_clio.invoke(state)
