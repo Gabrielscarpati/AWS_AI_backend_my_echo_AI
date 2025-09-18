@@ -109,12 +109,21 @@ def handler(event, context):
     except Exception:
         timings_total = 0.0
 
+    # Include security information in response
+    security_info = {
+        "security_check_passed": final_state.get("security_check_passed", True),
+        "security_flags": final_state.get("security_flags", []),
+        "security_retry_count": final_state.get("security_retry_count", 0),
+        "security_check_result": final_state.get("security_check_result", {})
+    }
+
     return {
         "statusCode": 200,
         "body": json.dumps({
             "response": final_state.get("response", ""),
             "summary_generated": final_state.get("summary_generated", False),
             "message_summary": final_state.get("message_summary", ""),
+            "security": security_info,
             "timings": timings,
             "timings_total": timings_total,
             "wall_time": wall_time,
