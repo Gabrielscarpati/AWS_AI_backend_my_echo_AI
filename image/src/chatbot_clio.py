@@ -63,7 +63,7 @@ PATTERN_ASSISTANT = re.compile(r"<assistant>(.*?)<\/assistant>", flags=flags)
 PINECONE_API_KEY = os.getenv('PINECONE_API_KEY')
 
 RETRIEVAL_SUMMARY_CNT = 3
-CONVERSATION_SUMMARY_THRESHOLD = 10
+CONVERSATION_SUMMARY_THRESHOLD = 9
 # Number of recent chat messages to send to models (configurable via env)
 PAST_CHAT_HISTORY_CNT = 9
 EMBEDDING_DIMENSION = 1024
@@ -525,7 +525,7 @@ def answer_with_rag(
 
     provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
     if provider == "openai":
-        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-nano")
+        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-mini")
     else:
         model = model or os.getenv("OLLAMA_RAG_MODEL", "llama3.1")
 
@@ -610,18 +610,23 @@ def generate_influencer_answer(state: State) -> State:
 
 
 def summarize(state: State) -> State:
-    # Always use modulo-based logic: summarize when user's message count hits multiples of threshold
+    # Summarize based on total message count (user + assistant) reaching multiples of threshold
     try:
-        msgs_cnt_by_user = int(state.get('msgs_cnt_by_user', 0))
+        total_msgs_cnt = len(state.get('chat_history', []))
     except Exception:
-        msgs_cnt_by_user = 0
-    is_summary_turn = msgs_cnt_by_user > 0 and (msgs_cnt_by_user % CONVERSATION_SUMMARY_THRESHOLD == 0)
+        total_msgs_cnt = 0
+    # Trigger when either the current total reaches a multiple of threshold, or
+    # when adding the imminent assistant reply would reach it. This handles
+    # different caller timings between local and prod flows.
+    hits_now = (total_msgs_cnt % CONVERSATION_SUMMARY_THRESHOLD == 0)
+    hits_with_next = ((total_msgs_cnt + 1) % CONVERSATION_SUMMARY_THRESHOLD == 0)
+    is_summary_turn = total_msgs_cnt > 0 and (hits_now or hits_with_next)
 
     if not is_summary_turn:
         return {"summary_generated": False, "message_summary": ""}
 
-    # Summarize the last N messages
-    messages_to_summarize_txt = messages_to_txt(state['chat_history'][-CONVERSATION_SUMMARY_THRESHOLD:])
+    # Summarize the last N messages (by total messages)
+    messages_to_summarize_txt = messages_to_txt(state.get('chat_history', [])[-CONVERSATION_SUMMARY_THRESHOLD:])
 
     prompt = prompt_templates['SUMMARY_PROMPT']
     prompt = prompt.format(

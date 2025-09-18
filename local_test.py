@@ -119,7 +119,7 @@ BEFORE SENDING (self-check)
         print(f"✅ Using test user: {user_id[:8]}...")
     except Exception as e:
         print(f"⚠️  Could not get test credentials: {e}")
-        user_id = "test-user-local"
+        user_id = "test-user-local2"
 
     msg_count = 0
     chat_history = []  # accumulate (role, content) tuples across turns
