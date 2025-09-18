@@ -3,12 +3,19 @@ SUMMARY_PROMPT: |
   
   Rules:
   - Keep only USER facts and questions; include assistant info only if the user confirmed it.
-  - Normalize pronouns and vague references (e.g., “who?” → “user asked who the assistant is”).
+  - Normalize pronouns and vague references (e.g., "who?" → "user asked who the assistant is").
   - Drop filler, small talk, and emotions unless they reveal a preference or boundary.
   - Use present tense and ISO dates (YYYY-MM-DD) if any appear.
   
   Conversation:
   {conversation}
+
+MAIN_SYSTEM_PROMPT: |
+  You are a helpful AI assistant. Use the following conversation summaries to provide context-aware responses:
+  
+  {summaries}
+  
+  Respond naturally and helpfully based on the conversation context.
 
 
 DYNAMIC_INFLUENCER_PROMPT: |

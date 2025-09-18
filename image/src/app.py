@@ -2,14 +2,12 @@ import json
 import requests
 import base64
 
-from chatbot_clio import chatbot_clio
+from chatbot.orchestrator import chatbot_clio, PATTERN_USER
 from dotenv import load_dotenv
 from supabase_utils import create_message, get_test_credentials
 from langchain_core.messages import HumanMessage, AIMessage
 
 load_dotenv()
-
-from chatbot_clio import PATTERN_USER
 
 
 def handler(event, context):
@@ -83,8 +81,8 @@ def handler(event, context):
     timings = final_state.get('timings', {})
     try:
         if not timings:
-            import chatbot_clio as cc
-            timings = getattr(cc, 'TIMINGS', {}) or {}
+            from chatbot.retrieval import TIMINGS
+            timings = TIMINGS or {}
     except Exception:
         timings = timings or {}
 
