@@ -1,5 +1,6 @@
 import uuid
 from typing import List
+from datetime import datetime
 
 from .state import State
 from .config import CONVERSATION_SUMMARY_THRESHOLD
@@ -38,7 +39,9 @@ def summarize(state: State) -> State:
     # Store in vector DB for retrieval
     metadata_payload = {
         "text": response.content,
-        "user_id": state['user_id']
+        "user_id": state['user_id'],
+        "influencer_id": state.get('creator_id', ''),  # Add influencer ID
+        "datetime": datetime.now().isoformat(),        # Add current datetime
     }
 
     vectors = [(

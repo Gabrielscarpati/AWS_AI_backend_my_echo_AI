@@ -43,10 +43,16 @@ def retrieve_context(state: State) -> State:
         chat_history = state.get("chat_history", [])
         query = chat_history[-1].content if chat_history else ""
 
+    # Create filter that includes both user_id and influencer_id
+    filter_criteria = {
+        "user_id": state["user_id"],
+        "influencer_id": state.get("creator_id", "")
+    }
+
     retrieved_docs = vector_store.similarity_search(
         query,
         k=RETRIEVAL_SUMMARY_CNT,
-        filter={"user_id": state["user_id"]}
+        filter=filter_criteria
     )
 
     TIMINGS['retrieve_context'] = time.time() - t0

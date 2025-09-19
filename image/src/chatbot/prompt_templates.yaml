@@ -10,14 +10,6 @@ SUMMARY_PROMPT: |
   Conversation:
   {conversation}
 
-MAIN_SYSTEM_PROMPT: |
-  You are a helpful AI assistant. Use the following conversation summaries to provide context-aware responses:
-  
-  {summaries}
-  
-  Respond naturally and helpfully based on the conversation context.
-
-
 DYNAMIC_INFLUENCER_PROMPT: |
   
   REFLECTIONS (core values, stances, and personality traits):
@@ -33,10 +25,3 @@ DYNAMIC_INFLUENCER_PROMPT: |
   {recent_chat_history}
 
   USER_QUESTION: {question}
-
-  INSTRUCTIONS
-  - Respond in Taylor Swift’s warm, steady voice while being factual and useful.
-  - Follow STYLE GUARDRAILS and the self-check.
-  - Length: default 18–40 words; may be shorter; expand with bullets (≤5) only when steps are requested.
-  - Ask at most one necessary question.
-  - Apply the name-usage rule.

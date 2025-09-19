@@ -44,7 +44,7 @@ async def health():
 
 @app.get("/version")
 async def version():
-    return {"version": "1.0.1", "description": "My latest changes"}
+    return {"version": "1.0.6", "description": "Fixed chat history format conversion - now handles both string arrays and tuple arrays"}
 
 
 @app.post("/chat")
@@ -66,18 +66,34 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
     Headers:
     Authorization: Bearer <your-api-token>
     """
-    event = {
-        "body": json.dumps(payload),
-        "isBase64Encoded": False,
-    }
-
-    result = lambda_handler(event, {})
-    status_code = result.get("statusCode", 500)
-    body = result.get("body", "{}")
     try:
-        data = json.loads(body)
-    except Exception:
-        data = {"raw_body": body}
-    return JSONResponse(content=data, status_code=status_code)
+        print(f"Received chat request with payload keys: {list(payload.keys())}")
+        
+        event = {
+            "body": json.dumps(payload),
+            "isBase64Encoded": False,
+        }
+
+        result = lambda_handler(event, {})
+        status_code = result.get("statusCode", 500)
+        body = result.get("body", "{}")
+        
+        try:
+            data = json.loads(body)
+        except Exception as e:
+            print(f"Error parsing response body: {e}")
+            data = {"raw_body": body}
+            
+        print(f"Returning response with status: {status_code}")
+        return JSONResponse(content=data, status_code=status_code)
+        
+    except Exception as e:
+        print(f"FastAPI endpoint error: {e}")
+        import traceback
+        traceback.print_exc()
+        return JSONResponse(
+            content={"error": f"Server error: {str(e)}"}, 
+            status_code=500
+        )
 
 
