@@ -60,7 +60,8 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
         "influencer_name": "...",  # optional
         "influencer_personality_prompt": "...",  # optional
         "chat_history": [("user", "hi")],
-        "msgs_cnt_by_user": 1
+        "msgs_cnt_by_user": 1,
+        "custom_voice_url": "..."  # optional, for TTS voice cloning
     }
     
     Headers:

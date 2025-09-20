@@ -21,10 +21,19 @@ def handler(event, context):
             "influencer_name": <optional influencer_name>,
             "influencer_personality_prompt": <optional personality prompt>,
             "chat_history": [<plain_text_message>, ...],  # Changed to plain text
-            "msgs_cnt_by_user": ...
+            "msgs_cnt_by_user": ...,
+            "custom_voice_url": <optional custom voice URL for TTS>
         }
     }
-    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str}
+    Returns JSON {
+        "response": "...", 
+        "response_type": "text" or "audio",
+        "summary_generated": bool, 
+        "message_summary": str,
+        "audio_url": <if response_type is "audio">,
+        "audio_duration": <if response_type is "audio">,
+        "tts_metadata": <if response_type is "audio">
+    }
     """
     
     try:
@@ -48,9 +57,10 @@ def handler(event, context):
         influencer_personality_prompt = payload.get("influencer_personality_prompt")  # Optional personality prompt
         chat_history_texts = payload.get("chat_history", [])  # List of plain text messages
         msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
+        custom_voice_url = payload.get("custom_voice_url")  # Optional custom voice for TTS
         
         # Convert chat history to LangChain message objects
-        # Handle both formats: ["text1", "text2"] and [["user", "text1"], ["assistant", "text2"]]
+        # Handle both formats: ["text1", "text2"] ouand [["user", "text1"], ["assistant", "text2"]]
         try:
             chat_history = []
             for item in chat_history_texts:
@@ -108,6 +118,7 @@ def handler(event, context):
             "creator_id": creator_id,
             "influencer_name": influencer_name,
             "influencer_personality_prompt": influencer_personality_prompt,
+            "custom_voice_url": custom_voice_url,
         }
         
         import time
@@ -152,17 +163,29 @@ def handler(event, context):
             "security_check_result": final_state.get("security_check_result", {})
         }
 
+        # Build response with TTS support
+        response_data = {
+            "response": final_state.get("response", ""),
+            "response_type": final_state.get("response_type", "text"),
+            "summary_generated": final_state.get("summary_generated", False),
+            "message_summary": final_state.get("message_summary", ""),
+            "security": security_info,
+            "timings": timings,
+            "timings_total": timings_total,
+            "wall_time": wall_time,
+        }
+
+        # Add audio-specific fields if this is an audio response
+        if final_state.get("response_type") == "audio":
+            response_data.update({
+                "audio_url": final_state.get("audio_url"),
+                "audio_duration": final_state.get("audio_duration"),
+                "tts_metadata": final_state.get("tts_metadata", {})
+            })
+
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "response": final_state.get("response", ""),
-                "summary_generated": final_state.get("summary_generated", False),
-                "message_summary": final_state.get("message_summary", ""),
-                "security": security_info,
-                "timings": timings,
-                "timings_total": timings_total,
-                "wall_time": wall_time,
-            })
+            "body": json.dumps(response_data)
         }
     
     except Exception as e:

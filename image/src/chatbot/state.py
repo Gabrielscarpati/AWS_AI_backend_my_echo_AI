@@ -23,3 +23,9 @@ class State(TypedDict, total=False):
     security_flags: List[str]
     security_retry_count: int
     original_response: str
+    # TTS fields
+    response_type: str  # "text" or "audio"
+    audio_url: str
+    audio_duration: float
+    custom_voice_url: str
+    tts_metadata: Dict[str, Any]
