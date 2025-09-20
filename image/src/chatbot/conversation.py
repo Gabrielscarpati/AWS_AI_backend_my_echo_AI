@@ -36,12 +36,14 @@ def format_pack(
 ) -> str:
     """Format the retrieval pack into a prompt."""
     # Do not include internal ids in the prompt lines
-    ref_lines_all = [f"- [{r['role']}] • {r.get('theme', '')} • {r.get('bullet', '')}" for r in
-                     pack.get("reflections", [])]
-    mem_lines_all = [f"- ({m.get('source', '')} @ {m.get('created_at', '')}) {m.get('text', '')}" for m in
-                     pack.get("memories", [])]
-    ref_lines = _truncate_lines(ref_lines_all, max_chars // 2)
-    mem_lines = _truncate_lines(mem_lines_all, max_chars // 2)
+    # New categories
+    ctx_lines_all = [f"- {c.get('source', '')} • {c.get('text', '')}" for c in pack.get("context_data", [])]
+    exp_lines_all = [f"- {e.get('title', '')}: {e.get('text', '')}" for e in pack.get("expert_analysis", [])]
+    ivw_lines_all = [f"- {i.get('model_type', '')} • {i.get('sub_category', '')}: {i.get('full_text', i.get('text', ''))}" for i in pack.get("interview_styles", [])]
+    # Allocate space across the three sections
+    ctx_lines = _truncate_lines(ctx_lines_all, max_chars // 3)
+    exp_lines = _truncate_lines(exp_lines_all, max_chars // 3)
+    ivw_lines = _truncate_lines(ivw_lines_all, max_chars // 3)
 
     # Use influencer name if provided, otherwise fallback to creator_id
     display_name = influencer_name or creator_id
@@ -62,10 +64,10 @@ def format_pack(
     template = prompt_templates['DYNAMIC_INFLUENCER_PROMPT']
     t0 = time.time()
     body = template.format(
-        influencer_name=display_name,
+        interview_and_communication_style="\n".join(ivw_lines) or "- (none)",
+        expert_analysis="\n".join(exp_lines) or "- (none)",
+        context_data="\n".join(ctx_lines) or "- (none)",
         question=question,
-        ref_lines="\n".join(ref_lines) or "- (none)",
-        mem_lines="\n".join(mem_lines) or "- (none)",
         conversation_summaries=conversation_summaries,
         recent_chat_history=recent_history_text,
     )
@@ -192,8 +194,9 @@ def generate_influencer_answer(state: State) -> State:
     TIMINGS['generate_influencer_answer'] = time.time() - tgen
     sources = {
         "lenses_used": out.get("lenses_used", []),
-        "reflections": [r.get("id") for r in out.get("reflections", [])],
-        "memories": [m.get("id") for m in out.get("memories", [])],
+        "context_data": [r.get("id") for r in out.get("context_data", [])],
+        "expert_analysis": [m.get("id") for m in out.get("expert_analysis", [])],
+        "interview_styles": [m.get("id") for m in out.get("interview_styles", [])],
     }
     answer_text = out.get("answer", "")
     return {

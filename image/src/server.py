@@ -52,12 +52,16 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
     """
     Accepts the same JSON body as the Lambda handler's event.body.
     Requires Bearer token authentication.
+    
+    Hardcoded for testing with mihir_ai:
+    - creator_id: "mihir_ai"
+    - influencer_name: "mihir"
 
     Example payload body:
     {
         "user_id": "...",
-        "creator_id": "...",
-        "influencer_name": "...",  # optional
+        "creator_id": "mihir_ai",  # Hardcoded for testing
+        "influencer_name": "mihir",  # Hardcoded for testing
         "influencer_personality_prompt": "...",  # optional
         "chat_history": [("user", "hi")],
         "msgs_cnt_by_user": 1
@@ -68,6 +72,17 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
     """
     try:
         print(f"Received chat request with payload keys: {list(payload.keys())}")
+        
+        # Override with hardcoded values for testing
+        payload["creator_id"] = "mihir_ai"
+        payload["influencer_name"] = "mihir"
+        
+        # Set default personality prompt if not provided
+        if "influencer_personality_prompt" not in payload or not payload["influencer_personality_prompt"]:
+            payload["influencer_personality_prompt"] = (
+                "Persona: You are Mihir. Speak with intelligence, technical expertise, and thoughtful analysis. "
+                "Be helpful, precise, and supportive. Offer specific, practical guidance based on your experiences."
+            )
         
         event = {
             "body": json.dumps(payload),

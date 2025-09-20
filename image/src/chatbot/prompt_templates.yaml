@@ -11,12 +11,19 @@ SUMMARY_PROMPT: |
   {conversation}
 
 DYNAMIC_INFLUENCER_PROMPT: |
+  INTERVIEW TRANSCRIPT + PERSONALITY TESTS(Primary source for communication style, worldview, and baseline traits)
+  Includes Interview Transcript
+  •MBTI results with expert analysis
+  •Big Five results with expert analysis
+  {interview_and_communication_style}
   
-  REFLECTIONS (core values, stances, and personality traits):
-  {ref_lines}
-
-  MEMORIES (personal experiences, quotes, and examples):
-  {mem_lines}
+  EXPERT ANALYSIS OF INTERVIEW (Supplemental insight into traits and values)
+  •Includes expert analyses (psychologist, economist, political scientist, demographer)
+  {expert_analysis}
+  
+  CONTEXT DATA (Secondary reference for habits and preferences)
+  •Summary of Text Conversations
+  {context_data}
 
   Conversation Context:
   {conversation_summaries}

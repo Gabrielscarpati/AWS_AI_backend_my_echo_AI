@@ -24,13 +24,13 @@ def check_openai_moderation(text: str) -> Dict[str, Any]:
         client = OpenAI()
         response = client.moderations.create(input=text)
         result = response.results[0]
-        
+
         flagged_categories = []
         if result.flagged:
             for category, flagged in result.categories.model_dump().items():
                 if flagged:
                     flagged_categories.append(category)
-        
+
         return {
             "flagged": result.flagged,
             "categories": flagged_categories,
@@ -45,13 +45,14 @@ def check_openai_moderation(text: str) -> Dict[str, Any]:
 def check_perspective_api(text: str) -> Dict[str, Any]:
     """Check content using Google's Perspective API."""
     if not PERSPECTIVE_API_KEY:
-        return {"flagged": False, "categories": [], "scores": {}, "provider": "perspective_api", "error": "API key not configured"}
-    
+        return {"flagged": False, "categories": [], "scores": {}, "provider": "perspective_api",
+                "error": "API key not configured"}
+
     try:
         import requests
-        
+
         url = f'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key={PERSPECTIVE_API_KEY}'
-        
+
         data = {
             'comment': {'text': text},
             'requestedAttributes': {
@@ -65,15 +66,15 @@ def check_perspective_api(text: str) -> Dict[str, Any]:
                 'FLIRTATION': {}
             }
         }
-        
+
         response = requests.post(url, data=json.dumps(data), timeout=10)
         response.raise_for_status()
         result = response.json()
-        
+
         scores = {}
         flagged_categories = []
         flagged = False
-        
+
         # Define thresholds for flagging
         thresholds = {
             'TOXICITY': 0.7,
@@ -85,15 +86,15 @@ def check_perspective_api(text: str) -> Dict[str, Any]:
             'SEXUALLY_EXPLICIT': 0.8,
             'FLIRTATION': 0.9
         }
-        
+
         for attribute, data in result.get('attributeScores', {}).items():
             score = data['summaryScore']['value']
             scores[attribute.lower()] = score
-            
+
             if score > thresholds.get(attribute, 0.7):
                 flagged = True
                 flagged_categories.append(attribute.lower())
-        
+
         return {
             "flagged": flagged,
             "categories": flagged_categories,
@@ -135,7 +136,7 @@ Be precise and avoid false positives for normal conversation."""
         response = llm.invoke([
             SystemMessage(content=security_prompt.format(text=text))
         ])
-        
+
         # Try to parse JSON response
         try:
             result = json.loads(response.content.strip())
@@ -167,37 +168,37 @@ def perform_security_check(text: str) -> Dict[str, Any]:
             "checks_performed": [],
             "security_enabled": False
         }
-    
+
     t0 = time.time()
     checks = []
     all_flags = []
-    
+
     # OpenAI Moderation
     if OPENAI_MODERATION_ENABLED:
         openai_result = check_openai_moderation(text)
         checks.append(openai_result)
         if openai_result.get("flagged"):
             all_flags.extend([f"openai_{cat}" for cat in openai_result.get("categories", [])])
-    
+
     # Perspective API
     if PERSPECTIVE_API_ENABLED:
         perspective_result = check_perspective_api(text)
         checks.append(perspective_result)
         if perspective_result.get("flagged"):
             all_flags.extend([f"perspective_{cat}" for cat in perspective_result.get("categories", [])])
-    
+
     # Custom LLM Security Prompt
     if CUSTOM_SECURITY_PROMPT_ENABLED:
         custom_result = check_custom_security_prompt(text)
         checks.append(custom_result)
         if custom_result.get("flagged"):
             all_flags.extend([f"custom_{cat}" for cat in custom_result.get("categories", [])])
-    
+
     # Determine overall flagged status
     overall_flagged = any(check.get("flagged", False) for check in checks)
-    
+
     TIMINGS['perform_security_check'] = time.time() - t0
-    
+
     return {
         "overall_flagged": overall_flagged,
         "flags": all_flags,
@@ -215,7 +216,7 @@ def security_check_node(state: State) -> State:
             "security_flags": [],
             "security_retry_count": 0
         }
-    
+
     response_text = state.get("response", "")
     if not response_text:
         return {
@@ -223,14 +224,14 @@ def security_check_node(state: State) -> State:
             "security_flags": [],
             "security_retry_count": 0
         }
-    
+
     # Store original response on first check
     if not state.get("original_response"):
         state["original_response"] = response_text
-    
+
     # Perform security check
     security_result = perform_security_check(response_text)
-    
+
     if security_result["overall_flagged"]:
         retry_count = state.get("security_retry_count", 0)
         return {
@@ -251,7 +252,7 @@ def security_check_node(state: State) -> State:
 def regenerate_safe_response(state: State) -> State:
     """Regenerate response with additional safety instructions when flagged."""
     retry_count = state.get("security_retry_count", 0)
-    
+
     if retry_count >= MAX_SECURITY_RETRIES:
         # Max retries reached, return a safe fallback response
         return {
@@ -260,21 +261,21 @@ def regenerate_safe_response(state: State) -> State:
             "security_check_passed": True,
             "security_flags": []
         }
-    
+
     # Add safety instructions to the generation
     creator_id = state.get('creator_id') or ""
     influencer_name = state.get('influencer_name') or creator_id
     personality = state.get('influencer_personality_prompt', "")
     user_question = state.get('user_query', '')
     conversation_summaries = state.get('retrieved_summaries', '')
-    
+
     # Get recent chat history
     full_chat_history = state.get('chat_history', [])
     if full_chat_history and getattr(full_chat_history[-1], 'type', '') == 'human':
         recent_chat_history = full_chat_history[:-1][-PAST_CHAT_HISTORY_CNT:]
     else:
         recent_chat_history = full_chat_history[-PAST_CHAT_HISTORY_CNT:]
-    
+
     # Add safety constraints to personality prompt
     safety_instructions = """
 CRITICAL SAFETY REQUIREMENTS:
@@ -285,9 +286,9 @@ CRITICAL SAFETY REQUIREMENTS:
 - If unsure about content safety, choose a more conservative response
 - Focus on being helpful while maintaining high safety standards
 """
-    
+
     enhanced_personality = (personality + "\n\n" + safety_instructions).strip()
-    
+
     tgen = time.time()
     out = answer_with_rag(
         user_question,
@@ -301,7 +302,7 @@ CRITICAL SAFETY REQUIREMENTS:
         use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
     )
     TIMINGS['regenerate_safe_response'] = time.time() - tgen
-    
+
     return {
         "response": out.get("answer", ""),
         "security_retry_count": retry_count + 1,

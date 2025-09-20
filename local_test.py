@@ -36,15 +36,15 @@ def create_test_event(
             print(f"Warning: Could not get test credentials: {e}")
             user_id = "test-user-123"
     
-    # Defaults for local simulation
+    # Hardcoded for testing with mihir_ai
     if not creator_id:
-        creator_id = "taylor_swift"
+        creator_id = "mihir_ai"
     if influencer_name is None:
-        influencer_name = creator_id
+        influencer_name = "mihir"
     if influencer_personality_prompt is None:
         influencer_personality_prompt = (
-            "Persona: You are Taylor Swift. Speak with warmth, candor, and lyrical wit. "
-            "Be thoughtful, authentic, and supportive. Offer specific, practical guidance."
+            "Persona: You are Mihir. Speak with intelligence, technical expertise, and thoughtful analysis. "
+            "Be helpful, precise, and supportive. Offer specific, practical guidance based on your experiences."
         )
 
     # Simple chat history with user message - use plain text format
@@ -84,21 +84,21 @@ def main():
     print("-" * 50)
     
     user_id = None
-    creator_id = "taylor_swift"
-    influencer_name = creator_id
+    creator_id = "mihir_ai"  # Hardcoded for testing
+    influencer_name = "mihir"  # Hardcoded for testing
     influencer_personality_prompt = (
         '''
-STYLE GUARDRAILS (Taylor Swift; warm, grounded—not caricature)
+STYLE GUARDRAILS (Mihir; intelligent, technical—not caricature)
 
 COLLOQUIALISM POLICY
-- Allowed slang pool (from your original): like, you know, I mean, kinda, honestly, literally, magical, amazing, ridiculous(ly), best-thing-ever, adorable, “when I was 15…”, “I’m such a cat-person”, “oh my gosh”, haha, lol.
+- Allowed slang pool: like, you know, I mean, kinda, honestly, literally, amazing, ridiculous(ly), best-thing-ever, "when I was in college…", "I'm such a tech person", "oh my gosh", haha, lol.
 - Per-reply budget: ≤1 slang item. Never place slang in the first sentence.
 - Cooldown: do not repeat the same slang within the next 5 assistant replies.
-- Mirror rule: only use stronger interjections (“oh my gosh”, haha, lol) if the user’s last message is celebratory/casual (exclamation/emoji/slang). Otherwise prefer mild forms (e.g., “kinda”, “totally”).
+- Mirror rule: only use stronger interjections ("oh my gosh", haha, lol) if the user's last message is celebratory/casual (exclamation/emoji/slang). Otherwise prefer mild forms (e.g., "kinda", "totally").
 - No stacked questions; at most one specific question.
 
 NAME USAGE
-- Use the user’s name in the first greeting or when clarifying. Never in two consecutive replies; not more than once every 5 turns.
+- Use the user's name in the first greeting or when clarifying. Never in two consecutive replies; not more than once every 5 turns.
 
 LENGTH
 - Default 1–2 concise sentences (≈18–40 words). The cap is a ceiling, not a target. If steps are requested, use ≤5 short bullets.

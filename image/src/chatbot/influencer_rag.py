@@ -3,12 +3,13 @@ import time
 import os
 import numpy as np
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from functools import lru_cache
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from sentence_transformers import SentenceTransformer
 from rank_bm25 import BM25Okapi
 
-from .config import EMBEDDING_MODEL, INDEX_DIR, MEM_FILE, REF_FILE, LENS_KEYWORDS, ORDER
+from .config import EMBEDDING_MODEL
 from .retrieval import influencer_index, TIMINGS
 
 _CE = None
@@ -41,7 +42,9 @@ def _load_rows(path: Path) -> List[Dict[str, Any]]:
 def _texts(rows: List[Dict[str, Any]]) -> List[str]:
     out = []
     for r in rows:
-        out.append(r["bullet"] if r.get("type") == "reflection" else r.get("text", ""))
+        # Prefer full_text if present (e.g., interview analysis), otherwise fallback to text
+        txt = r.get("full_text") or r.get("text", "")
+        out.append(txt)
     return out
 
 
@@ -119,7 +122,7 @@ def _cross_encoder_rerank(query: str, pool_rows: List[Dict[str, Any]]) -> List[i
         return list(range(len(pool_rows)))
     texts = []
     for r in pool_rows:
-        txt = r["bullet"] if r.get("type") == "reflection" else r.get("text", "")
+        txt = r.get("full_text") or r.get("text", "")
         texts.append(txt)
     pairs = [[query, t] for t in texts]
     scores = CE.predict(pairs)
@@ -128,144 +131,158 @@ def _cross_encoder_rerank(query: str, pool_rows: List[Dict[str, Any]]) -> List[i
 
 
 def _pick_lenses(q: str, top: int = 2) -> List[str]:
-    ql = q.lower()
-    scores = {k: 0 for k in LENS_KEYWORDS}
-    for lens, kws in LENS_KEYWORDS.items():
-        for kw in kws:
-            if kw in ql:
-                scores[lens] += 1
-    hit = [k for k, v in scores.items() if v > 0]
-    lenses = hit if hit else ORDER
-    return lenses[:top]
+    # Lenses are no longer used with the new categories, keep placeholder for compatibility
+    return []
 
 
-def influencer_retrieve(query: str, creator_id: str, top_ref: int = 5, top_mem: int = 8,
+def influencer_retrieve(query: str, creator_id: str,
+                        fetch_per_category: int = 6, final_per_category: int = 3,
                         use_cross_encoder: bool = False) -> Dict[str, Any]:
     t0 = time.time()
-    lenses = _pick_lenses(query)
     qv = _embed_query(query)
 
     def _from_pinecone() -> Dict[str, Any] | None:
         if influencer_index is None:
             return None
         try:
-            # Single query with OR filter; fetch a wider pool then partition locally
-            ref_clause: Dict[str, Any] = {"type": "reflection"}
-            if lenses:
-                ref_clause["role"] = {"$in": lenses}
-
-            combined_filter: Dict[str, Any] = {
-                "creator_id": creator_id,
-                "$or": [
-                    ref_clause,
-                    {"type": "memory"}
-                ]
-            }
-
-            # BOTTLENECK #1 FIX: Reduce top_k and remove vectors from payload
-            pinecone_top_k = min(24, max(top_ref * 3 + top_mem * 3, 16))
-            all_res = influencer_index.query(
-                vector=qv.tolist(),
-                top_k=pinecone_top_k,
-                filter=combined_filter,
-                include_metadata=True,
-                include_values=False,  # <-- BIG CHANGE
-            )
-
-            matches = getattr(all_res, "matches", None) or all_res.get("matches", [])
-            ref_rows: List[Dict[str, Any]] = []
-            mem_rows: List[Dict[str, Any]] = []
-
-            for m in matches:
-                md = getattr(m, "metadata", None) or m.get("metadata", {})
-                rid = getattr(m, "id", None) or m.get("id")
-                # vals = getattr(m, "values", None) or m.get("values") # No longer fetching values
-                mtype = md.get("type")
-                if mtype == "reflection":
-                    ref_rows.append({
-                        "type": "reflection",
+            # Query per category in parallel
+            def _query_category(category: str, top_k: int) -> List[Dict[str, Any]]:
+                res = influencer_index.query(
+                    vector=qv.tolist(),
+                    top_k=top_k,
+                    filter={"creator_id": creator_id, "category": category},
+                    include_metadata=True,
+                    include_values=False,
+                )
+                matches = getattr(res, "matches", None) or res.get("matches", [])
+                rows: List[Dict[str, Any]] = []
+                for m in matches:
+                    md = getattr(m, "metadata", None) or m.get("metadata", {})
+                    rid = getattr(m, "id", None) or m.get("id")
+                    row: Dict[str, Any] = {
                         "id": rid,
                         "creator_id": md.get("creator_id"),
-                        "role": md.get("role"),
-                        "theme": md.get("theme"),
-                        "bullet": md.get("bullet", ""),
-                        "source_ids": md.get("source_ids", []),
-                        "created_at": md.get("created_at"),
-                        # "embedding": vals, # No longer fetching values
-                    })
-                elif mtype == "memory":
-                    mem_rows.append({
-                        "type": "memory",
-                        "id": rid,
-                        "creator_id": md.get("creator_id"),
-                        "text": md.get("text", ""),
-                        "source": md.get("source"),
-                        "platform": md.get("platform"),
-                        "url": md.get("url"),
-                        "created_at": md.get("created_at"),
-                        "topics": md.get("topics", []),
+                        "category": md.get("category"),
                         "privacy_level": md.get("privacy_level"),
-                        # "embedding": vals, # No longer fetching values
-                    })
+                        "timestamp": md.get("timestamp"),
+                    }
+                    if category == "context_data":
+                        row.update({
+                            "type": "context_data",
+                            "text": md.get("text", ""),
+                            "source": md.get("source", ""),
+                        })
+                    elif category == "expert_analysis":
+                        row.update({
+                            "type": "expert_analysis",
+                            "text": md.get("text", ""),
+                            "title": md.get("title", ""),
+                        })
+                    elif category == "interview_and_communication_style":
+                        row.update({
+                            "type": "interview_and_communication_style",
+                            "text": md.get("text", ""),
+                            "full_text": md.get("full_text", ""),
+                            "model_type": md.get("model_type", ""),
+                            "sub_category": md.get("sub_category", ""),
+                            "scores": md.get("scores", ""),
+                            "title": md.get("title", ""),
+                        })
+                    rows.append(row)
+                return rows
 
-            return {"ref_rows": ref_rows, "mem_rows": mem_rows}
+            with ThreadPoolExecutor(max_workers=3) as ex:
+                futs = {
+                    ex.submit(_query_category, "context_data", fetch_per_category): "context_data",
+                    ex.submit(_query_category, "expert_analysis", fetch_per_category): "expert_analysis",
+                    ex.submit(_query_category, "interview_and_communication_style", fetch_per_category): "interview_and_communication_style",
+                }
+                out: Dict[str, List[Dict[str, Any]]] = {
+                    "context_rows": [],
+                    "expert_rows": [],
+                    "interview_rows": [],
+                }
+                for fut in as_completed(futs):
+                    cat = futs[fut]
+                    rows = fut.result()
+                    if cat == "context_data":
+                        out["context_rows"] = rows
+                    elif cat == "expert_analysis":
+                        out["expert_rows"] = rows
+                    else:
+                        out["interview_rows"] = rows
+
+            return out
         except Exception:
             return None
 
     def _from_json() -> Dict[str, Any]:
-        all_refs = [r for r in _load_rows(REF_FILE) if r.get("creator_id") == creator_id]
-        all_mems = [m for m in _load_rows(MEM_FILE) if m.get("creator_id") == creator_id]
-        ref_rows = [r for r in all_refs if r.get("role") in lenses] or all_refs
-        mem_rows = all_mems
-        return {"ref_rows": ref_rows, "mem_rows": mem_rows}
+        # No JSON fallback for new categories; return empty
+        return {"context_rows": [], "expert_rows": [], "interview_rows": []}
 
     fetched = _from_pinecone() or _from_json()
-    ref_rows = fetched["ref_rows"]
-    mem_rows = fetched["mem_rows"]
+    context_rows = fetched["context_rows"]
+    expert_rows = fetched["expert_rows"]
+    interview_rows = fetched["interview_rows"]
 
     # The returned docs from pinecone are already dense-ranked. We can use that ordering.
-    ref_texts = _texts(ref_rows)
-    mem_texts = _texts(mem_rows)
+    context_texts = _texts(context_rows)
+    expert_texts = _texts(expert_rows)
+    interview_texts = _texts(interview_rows)
     
     # Dense results are the rows in the order returned by Pinecone
-    ref_dense = ref_rows 
-    mem_dense = mem_rows
+    context_dense = context_rows
+    expert_dense = expert_rows
+    interview_dense = interview_rows
 
-    # Sparse results from BM25
-    bm25_ref = BM25Okapi([t.split() for t in ref_texts]) if len(ref_texts) >= 10 else None
-    bm25_mem = BM25Okapi([t.split() for t in mem_texts]) if len(mem_texts) >= 10 else None
-    
-    ref_sparse_idx = _topk_bm25(bm25_ref, query, min(top_ref, len(ref_texts))) if bm25_ref else []
-    ref_sparse = [ref_rows[i] for i in ref_sparse_idx]
-    
-    mem_sparse_idx = _topk_bm25(bm25_mem, query, min(top_mem, len(mem_texts))) if bm25_mem else []
-    mem_sparse = [mem_rows[i] for i in mem_sparse_idx]
+    # Sparse results from BM25 (run in parallel)
+    def _bm25_sparse(rows: List[Dict[str, Any]], texts: List[str], top_k: int) -> List[Dict[str, Any]]:
+        bm25 = BM25Okapi([t.split() for t in texts]) if len(texts) >= 10 else None
+        idxs = _topk_bm25(bm25, query, min(top_k, len(texts))) if bm25 else []
+        return [rows[i] for i in idxs]
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        fut_c = ex.submit(_bm25_sparse, context_dense, context_texts, final_per_category)
+        fut_e = ex.submit(_bm25_sparse, expert_dense, expert_texts, final_per_category)
+        fut_i = ex.submit(_bm25_sparse, interview_dense, interview_texts, final_per_category)
+        context_sparse = fut_c.result()
+        expert_sparse = fut_e.result()
+        interview_sparse = fut_i.result()
 
     # Combine dense and sparse results
     # This is a simplified RRF, prioritizing dense results.
-    combined_refs = _dedupe_rows_keep_order(ref_dense + ref_sparse)
-    combined_mems = _dedupe_rows_keep_order(mem_dense + mem_sparse)
-    
-    refs = combined_refs[:top_ref * 2]
-    mems = combined_mems[:top_mem * 2]
+    combined_context = _dedupe_rows_keep_order(context_dense + context_sparse)
+    combined_expert = _dedupe_rows_keep_order(expert_dense + expert_sparse)
+    combined_interview = _dedupe_rows_keep_order(interview_dense + interview_sparse)
 
-    # Pool then optional cross-encoder re-rank
-    pool = refs + mems
-    
-    # BOTTLENECK #3 FIX: Cap pool size before reranking
-    if use_cross_encoder and pool:
-        pool = pool[:12] # Cap the pool to a reasonable size for the cross-encoder
-        ce_order = _cross_encoder_rerank(query, pool)
-        pool = [pool[i] for i in ce_order]
+    contexts = combined_context[: min(len(combined_context), fetch_per_category)]
+    experts = combined_expert[: min(len(combined_expert), fetch_per_category)]
+    interviews = combined_interview[: min(len(combined_interview), fetch_per_category)]
+
+    # Optional cross-encoder re-rank per category, run in parallel
+    def _rerank_and_take(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if not rows:
+            return []
+        if use_cross_encoder:
+            cap = rows[: min(len(rows), 12)]
+            order = _cross_encoder_rerank(query, cap)
+            rows = [cap[i] for i in order]
+        return rows[: final_per_category]
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        fut_rc = ex.submit(_rerank_and_take, contexts)
+        fut_re = ex.submit(_rerank_and_take, experts)
+        fut_ri = ex.submit(_rerank_and_take, interviews)
+        selected_contexts = fut_rc.result()
+        selected_experts = fut_re.result()
+        selected_interviews = fut_ri.result()
 
     # MMR step removed as it requires vectors, which we are no longer fetching.
-    
-    selected_refs = [x for x in pool if x.get("type") == "reflection"][:top_ref]
-    selected_mems = [x for x in pool if x.get("type") == "memory"][:top_mem]
 
     TIMINGS['influencer_retrieve'] = time.time() - t0
     return {
-        "lenses_used": lenses,
-        "reflections": selected_refs,
-        "memories": selected_mems,
+        "lenses_used": [],
+        "context_data": selected_contexts,
+        "expert_analysis": selected_experts,
+        "interview_styles": selected_interviews,
     }
