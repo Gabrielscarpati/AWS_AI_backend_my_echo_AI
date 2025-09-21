@@ -44,7 +44,7 @@ async def health():
 
 @app.get("/version")
 async def version():
-    return {"version": "1.0.6", "description": "Fixed chat history format conversion - now handles both string arrays and tuple arrays"}
+    return {"version": "1.0.7", "description": "Improved the security logic to be parallel"}
 
 
 @app.post("/chat")

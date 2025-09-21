@@ -34,7 +34,7 @@ def create_test_event(
             user_id, _ = get_test_credentials()
         except Exception as e:
             print(f"Warning: Could not get test credentials: {e}")
-            user_id = "test-user-123"
+            user_id = "4ccc45d9-2216-4e21-95ee-e04f966e68d3"
     
     # Hardcoded for testing with mihir_ai
     if not creator_id:
@@ -117,7 +117,7 @@ BEFORE SENDING (self-check)
         print(f"✅ Using test user: {user_id[:8]}...")
     except Exception as e:
         print(f"⚠️  Could not get test credentials: {e}")
-        user_id = "test-user-local2"
+        user_id = "4ccc45d9-2216-4e21-95ee-e04f966e68d3"
 
     msg_count = 0
     chat_history = []  # accumulate plain text messages across turns

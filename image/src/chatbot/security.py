@@ -2,6 +2,7 @@ import json
 import time
 import os
 from typing import Dict, Any, List
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from langchain_core.messages import BaseMessage, SystemMessage
 
 from .state import State
@@ -14,7 +15,7 @@ from .conversation import answer_with_rag
 from .retrieval import TIMINGS
 
 # Import llm from models module
-from .models import llm
+from .models import security_llm
 
 
 def check_openai_moderation(text: str) -> Dict[str, Any]:
@@ -133,7 +134,7 @@ Respond with a JSON object containing:
 
 Be precise and avoid false positives for normal conversation."""
 
-        response = llm.invoke([
+        response = security_llm.invoke([
             SystemMessage(content=security_prompt.format(text=text))
         ])
 
@@ -160,7 +161,7 @@ Be precise and avoid false positives for normal conversation."""
 
 
 def perform_security_check(text: str) -> Dict[str, Any]:
-    """Perform comprehensive security check using multiple methods."""
+    """Perform comprehensive security check using multiple methods in parallel."""
     if not SECURITY_ENABLED:
         return {
             "overall_flagged": False,
@@ -170,29 +171,36 @@ def perform_security_check(text: str) -> Dict[str, Any]:
         }
 
     t0 = time.time()
-    checks = []
-    all_flags = []
+    checks: List[Dict[str, Any]] = []
+    all_flags: List[str] = []
 
-    # OpenAI Moderation
+    # Prepare enabled tasks
+    tasks = []
     if OPENAI_MODERATION_ENABLED:
-        openai_result = check_openai_moderation(text)
-        checks.append(openai_result)
-        if openai_result.get("flagged"):
-            all_flags.extend([f"openai_{cat}" for cat in openai_result.get("categories", [])])
-
-    # Perspective API
+        tasks.append(("openai", check_openai_moderation))
     if PERSPECTIVE_API_ENABLED:
-        perspective_result = check_perspective_api(text)
-        checks.append(perspective_result)
-        if perspective_result.get("flagged"):
-            all_flags.extend([f"perspective_{cat}" for cat in perspective_result.get("categories", [])])
-
-    # Custom LLM Security Prompt
+        tasks.append(("perspective", check_perspective_api))
     if CUSTOM_SECURITY_PROMPT_ENABLED:
-        custom_result = check_custom_security_prompt(text)
-        checks.append(custom_result)
-        if custom_result.get("flagged"):
-            all_flags.extend([f"custom_{cat}" for cat in custom_result.get("categories", [])])
+        tasks.append(("custom", check_custom_security_prompt))
+
+    # Execute in parallel
+    futures = []
+    results_by_name: Dict[str, Dict[str, Any]] = {}
+    if tasks:
+        with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+            for name, fn in tasks:
+                futures.append((name, executor.submit(fn, text)))
+            for name, fut in futures:
+                try:
+                    res = fut.result()
+                except Exception as e:
+                    # Normalize unexpected errors into a non-flagged result
+                    res = {"flagged": False, "categories": [], "error": str(e), "provider": name}
+                results_by_name[name] = res
+                checks.append(res)
+                if res.get("flagged"):
+                    cats = res.get("categories", [])
+                    all_flags.extend([f"{name}_{cat}" for cat in cats])
 
     # Determine overall flagged status
     overall_flagged = any(check.get("flagged", False) for check in checks)
