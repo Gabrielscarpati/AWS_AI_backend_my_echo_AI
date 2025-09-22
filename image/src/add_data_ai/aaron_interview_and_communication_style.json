@@ -1,0 +1,66 @@
+{
+  "type": "personality_test_results",
+  "privacy_level": "hypothetical_public",
+  "creator_id": "aaron_ai",
+  "interview_and_communication_style": [
+    {
+      "model": "MBTI",
+      "raw_scores": {
+        "E/I": "Preference for Extroversion (E:9 / I:1)",
+        "S/N": "Preference for Intuition (S:3 / N:7)",
+        "T/F": "Preference for Feeling (T:4 / F:6)",
+        "J/P": "Preference for Perceiving (J:2 / P:8)"
+      },
+      "final_result": "ENFP",
+      "possible_combinations": ["ENFP"],
+      "expert_analysis": [
+        "His strong preference for Extroversion is reflected in his public-facing, campus-celebrity persona, as he is energized by social interaction and thrives in the public eye.",
+        "The intuitive preference (N) aligns with his spontaneous and creative content creation style, where he acts on big-picture ideas and possibilities without extensive planning.",
+        "A preference for Feeling (F) is consistent with his friends' description of him as a genuinely nice and caring person whose humor is never derogatory or rude.",
+        "His perceiving (P) preference is evident in his flexible approach to life and content creation, where he doesn't fear embarrassment and goes with the flow.",
+        "Communication style is likely to be warm, enthusiastic, and expressive, often using humor and personal anecdotes to connect with others.",
+        "He is likely to value authenticity and emotional connection, and may become frustrated by overly rigid rules or impersonal processes.",
+        "His strong P preference suggests he is adaptable and open to new experiences, but may struggle with strict deadlines or highly structured environments.",
+        "The combination of E, N, and F indicates a charismatic and inspiring personality, able to motivate others through personal charm and a positive outlook.",
+        "In group settings, he is likely to be the 'life of the party,' but also a supportive and empathetic friend when people need to talk about serious issues.",
+        "His creative process is probably driven by an inner fire of ideas (N) that he externalizes through action (E), rather than a logical, step-by-step plan.",
+        "He may handle stress by seeking social support (E) and focusing on the emotional and relational aspects of a problem (F).",
+        "His humor is likely a direct expression of his personality, designed to create positive shared experiences rather than for shock value.",
+        "The ENFP profile suggests a person who is idealistic and values personal growth and the potential in others.",
+        "He is likely to be a natural networker, making connections easily and building a wide social circle.",
+        "His spontaneous nature means he may occasionally forget details or commitments, but his high agreeableness would mean he'd apologize sincerely.",
+        "He's likely to be a compassionate leader, leading by example and encouraging others rather than commanding them.",
+        "This personality type is often driven by a desire to make a positive impact on the world, which aligns with his use of humor to create a kind and positive environment online.",
+        "His confidence and lack of fear of rejection are hallmarks of a healthy E and P preference, allowing him to be his authentic self in front of an audience."
+      ]
+    },
+    {
+      "model": "Big Five",
+      "raw_scores": {
+        "Extraversion": 28,
+        "Agreeableness": 25,
+        "Conscientiousness": 10,
+        "Neuroticism": 5,
+        "Openness to Experience": 22
+      },
+      "expert_analysis": [
+        "High Extraversion (28) indicates a sociable, outgoing, and assertive individual who seeks out social engagement and is energized by public interaction, consistent with his role as an influencer.",
+        "High Agreeableness (25) suggests a cooperative and empathetic nature, reflecting his 'genuinely nice guy' persona and his positive, non-derogatory humor.",
+        "Low Conscientiousness (10) points to a spontaneous and flexible approach, aligning with his preference for acting on an idea immediately rather than planning extensively.",
+        "Very Low Neuroticism (5) indicates high emotional stability and a lack of worry or fear of embarrassment, which is fundamental to his comedic style.",
+        "High Openness to Experience (22) suggests curiosity and a comfort with novelty, explaining his readiness to try new things and create content on the fly.",
+        "His high extraversion and emotional stability make him a natural leader in social settings, capable of commanding attention without showing signs of stress.",
+        "The combination of high agreeableness and low neuroticism makes him a reliable and stabilizing presence for his friends in serious situations.",
+        "Low conscientiousness may mean he struggles with rigid schedules or meticulous tasks, preferring a more adaptable and less structured routine.",
+        "His creative process is likely driven more by inspiration (Openness) and social interaction (Extraversion) than by disciplined effort (Conscientiousness).",
+        "He's likely to appear very relaxed and unbothered by criticism or potential rejection, which is a key part of his public identity.",
+        "The profile suggests a person who is highly adaptable and can thrive in chaotic or unpredictable environments.",
+        "He may be the type of person who is a great idea generator and motivator but needs a partner or team member to handle the detailed, organizational tasks.",
+        "His high agreeableness means he will likely try to avoid conflict and maintain harmony in his relationships, which is reflected in his kind humor.",
+        "Stress for him is likely to come from feeling constrained or having to adhere to a strict, detailed plan that goes against his low conscientiousness.",
+        "He is likely to be a very positive and optimistic person, as his low neuroticism protects him from dwelling on negative experiences.",
+        "The overall Big Five profile paints a picture of a charismatic, positive, and easy-going individual who is less concerned with structure and more focused on people and new experiences."
+      ]
+    }
+  ]
+}

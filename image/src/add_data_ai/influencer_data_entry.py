@@ -159,9 +159,9 @@ def main():
 
     # Load and process data files
     data_files = [
-        ("context_data.json", "context_data"),
-        ("expert_analysis.json", "expert_analysis"),
-        ("interview_and_communication_style.json", "interview_and_communication_style")
+        ("aaron_context_data.json", "context_data"),
+        ("aaron_expert_analysis.json", "expert_analysis"),
+        ("aaron_interview_and_communication_style.json", "interview_and_communication_style")
     ]
 
     all_vectors = []
