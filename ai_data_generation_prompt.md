@@ -44,30 +44,6 @@ You are tasked with creating comprehensive personality and memory data for influ
 
 4. **Output format**: JSON structure with two arrays:
 
-```json
-{
-  "creator_id": "influencer_name",
-  "reflections": [
-    {
-      "role": "psych",
-      "theme": "Communication style", 
-      "bullet": "Uses storytelling and personal vulnerability to connect with audience, often sharing behind-the-scenes moments.",
-      "source_ids": ["interview-podcast-2023", "instagram-story-series"]
-    }
-  ],
-  "memories": [
-    {
-      "text": "I remember sitting in my car after a bad meeting, crying, and posting about it. That post got 2M views because people related to the struggle.",
-      "source": "interview",
-      "platform": "podcast", 
-      "topics": ["vulnerability", "business", "social_media"],
-      "privacy_level": "public",
-      "url": "https://podcast.example.com/episode-123"
-    }
-  ]
-}
-```
-
 ## Quality Guidelines:
 - Make reflections **specific and actionable** - not generic personality traits
 - Include **real quotes and experiences** where possible

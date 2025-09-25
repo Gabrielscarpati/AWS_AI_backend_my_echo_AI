@@ -15,7 +15,7 @@ def describe_image(image_data: bytes) -> Optional[str]:
     Describe an image using GPT-4.1-mini.
 
     Args:
-        image_data: Base64 encoded image data
+        image_data: Raw image bytes (not base64 encoded)
 
     Returns:
         Image description or None if failed
@@ -25,6 +25,19 @@ def describe_image(image_data: bytes) -> Optional[str]:
         return None
 
     try:
+        # Detect image format from bytes
+        if image_data.startswith(b'\x89PNG\r\n\x1a\n'):
+            image_format = "png"
+        elif image_data.startswith(b'\xff\xd8\xff'):
+            image_format = "jpeg"
+        elif image_data.startswith(b'RIFF') and b'WEBP' in image_data:
+            image_format = "webp"
+        else:
+            # Default to JPEG for unknown formats
+            image_format = "jpeg"
+
+        print(f"Detected image format: {image_format}")
+
         # Convert image data to base64 for the API call
         image_base64 = base64.b64encode(image_data).decode('utf-8')
 
@@ -40,7 +53,7 @@ def describe_image(image_data: bytes) -> Optional[str]:
                     {
                         "type": "image_url",
                         "image_url": {
-                            "url": f"data:image/jpeg;base64,{image_base64}"
+                            "url": f"data:image/{image_format};base64,{image_base64}"
                         }
                     }
                 ]

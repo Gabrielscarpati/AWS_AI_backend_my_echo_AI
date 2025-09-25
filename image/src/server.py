@@ -64,7 +64,12 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
         "influencer_name": "...",  # optional
         "influencer_personality_prompt": "...",  # optional
         "chat_history": [("user", "hi")],
-        "msgs_cnt_by_user": 1
+        "msgs_cnt_by_user": 1,
+        "input_media_type": "text",  # "text", "audio", or "image" (optional, defaults to "text")
+        "audio_data": "...",  # base64 encoded audio data (required if input_media_type is "audio")
+        "image_data": "...",  # base64 encoded image data (required if input_media_type is "image")
+        "user_query": "...",  # text query (required for text, or backup for audio/image)
+        "should_generate_tts": false  # boolean to control TTS generation (optional, defaults to false)
     }
     
     Headers:

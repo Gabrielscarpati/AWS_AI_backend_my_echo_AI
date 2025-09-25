@@ -125,7 +125,11 @@ def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
     """
     msgs_cnt = state.get("msgs_cnt_by_user", 0)
 
-    if not should_generate_tts(msgs_cnt):
+    # Check if TTS should be generated based on API field OR message count
+    should_generate = state.get("should_generate_tts", False)
+    generate_by_count = should_generate_tts(msgs_cnt)
+
+    if not (should_generate or generate_by_count):
         return state
 
     print(f"Generating TTS for message #{msgs_cnt}")

@@ -21,10 +21,16 @@ def handler(event, context):
             "influencer_name": <optional influencer_name>,
             "influencer_personality_prompt": <optional personality prompt>,
             "chat_history": [<plain_text_message>, ...],  # Changed to plain text
-            "msgs_cnt_by_user": ...
+            "msgs_cnt_by_user": ...,
+            # Media input fields (optional):
+            "input_media_type": "text" | "audio" | "image",  # defaults to "text"
+            "audio_data": <base64_encoded_audio_data>,
+            "image_data": <base64_encoded_image_data>,
+            "user_query": <text_query>,  # For text input or as backup
+            "should_generate_tts": <boolean>  # Whether to generate TTS output
         }
     }
-    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str}
+    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str, "audio_output": "...", "audio_output_url": "..."}
     """
     
     try:
@@ -48,6 +54,30 @@ def handler(event, context):
         influencer_personality_prompt = payload.get("influencer_personality_prompt")  # Optional personality prompt
         chat_history_texts = payload.get("chat_history", [])  # List of plain text messages
         msgs_cnt_by_user = payload.get("msgs_cnt_by_user")
+
+        # Media input handling
+        input_media_type = payload.get("input_media_type", "text")
+        audio_data = payload.get("audio_data")
+        image_data = payload.get("image_data")
+        user_query = payload.get("user_query", "")
+        should_generate_tts = payload.get("should_generate_tts", False)
+
+        # Validate media data
+        if input_media_type == "audio" and not audio_data:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "audio_data required when input_media_type is 'audio'"})
+            }
+        elif input_media_type == "image" and not image_data:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "image_data required when input_media_type is 'image'"})
+            }
+        elif input_media_type == "text" and not user_query and not chat_history_texts:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "user_query or chat_history required for text input"})
+            }
         
         # Convert chat history to LangChain message objects
         # Handle both formats: ["text1", "text2"] and [["user", "text1"], ["assistant", "text2"]]
@@ -102,12 +132,17 @@ def handler(event, context):
             }
         
         state = {
-            "user_id": user_id, 
+            "user_id": user_id,
             "chat_history": chat_history,
             "msgs_cnt_by_user": msgs_cnt_by_user,
             "creator_id": creator_id,
             "influencer_name": influencer_name,
             "influencer_personality_prompt": influencer_personality_prompt,
+            "input_media_type": input_media_type,
+            "audio_data": audio_data,
+            "image_data": image_data,
+            "user_query": user_query,
+            "should_generate_tts": should_generate_tts,
         }
         
         import time
@@ -162,6 +197,12 @@ def handler(event, context):
                 "timings": timings,
                 "timings_total": timings_total,
                 "wall_time": wall_time,
+                # Media output - convert bytes to base64 string for JSON serialization
+                "audio_output": base64.b64encode(final_state.get("audio_output")).decode('utf-8') if final_state.get("audio_output") else None,
+                "audio_output_url": final_state.get("audio_output_url"),
+                "input_media_type": final_state.get("input_media_type", "text"),
+                "image_description": final_state.get("image_description"),
+                "should_generate_tts": final_state.get("should_generate_tts", False),
             })
         }
     

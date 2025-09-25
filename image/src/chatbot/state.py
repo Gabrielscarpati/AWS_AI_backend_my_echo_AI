@@ -23,3 +23,11 @@ class State(TypedDict, total=False):
     security_flags: List[str]
     security_retry_count: int
     original_response: str
+    # Media processing fields
+    input_media_type: str  # 'text', 'audio', 'image'
+    audio_data: bytes  # Base64 encoded audio data
+    image_data: bytes  # Base64 encoded image data
+    audio_output: bytes  # Generated audio response from TTS (stored as bytes in state, converted to base64 for JSON response)
+    audio_output_url: str  # URL to the generated audio file
+    image_description: str  # Description of the image from GPT-4.1-mini
+    should_generate_tts: bool  # Whether to generate TTS output (API controlled)

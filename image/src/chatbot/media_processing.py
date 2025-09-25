@@ -31,9 +31,20 @@ def process_media_input(state: State) -> State:
         # Convert base64 to bytes if needed
         if isinstance(audio_data, str):
             try:
+                # Fix common base64 padding issues
+                audio_data = audio_data.strip()
+                # Add padding if missing
+                missing_padding = len(audio_data) % 4
+                if missing_padding:
+                    audio_data += '=' * (4 - missing_padding)
+
                 audio_data = base64.b64decode(audio_data)
             except Exception as e:
                 print(f"Error decoding audio data: {e}")
+                print("💡 Tip: Make sure your base64 audio data:")
+                print("   - Is a complete base64 string")
+                print("   - Has proper padding (= characters at the end)")
+                print("   - You can test with: echo 'UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1f' | base64 -d > test.wav")
                 return state
 
         # Transcribe audio to text
@@ -54,9 +65,20 @@ def process_media_input(state: State) -> State:
         # Convert base64 to bytes if needed
         if isinstance(image_data, str):
             try:
+                # Fix common base64 padding issues
+                image_data = image_data.strip()
+                # Add padding if missing
+                missing_padding = len(image_data) % 4
+                if missing_padding:
+                    image_data += '=' * (4 - missing_padding)
+
                 image_data = base64.b64decode(image_data)
             except Exception as e:
                 print(f"Error decoding image data: {e}")
+                print("💡 Tip: Make sure your base64 image data:")
+                print("   - Is a complete base64 string")
+                print("   - Has proper padding (= characters at the end)")
+                print("   - You can test with: echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==' | base64 -d > test.png")
                 # Keep original string data for error handling
                 image_data = state["image_data"]
 
@@ -66,8 +88,14 @@ def process_media_input(state: State) -> State:
         # Store the description for later use
         state["image_description"] = description
 
-        # Use description for database querying
-        state["user_query"] = description
+        # Create enhanced query that explains the image context
+        enhanced_query = (
+            "The user has sent an image. Please analyze and respond based on this image description: "
+            f"{description}. "
+            "This is the only content provided by the user - no additional text message was included. "
+            "Base your response on this image description while considering the context of our conversation."
+        )
+        state["user_query"] = enhanced_query
 
         print(f"Image processed, using description for query: {description[:100]}...")
 

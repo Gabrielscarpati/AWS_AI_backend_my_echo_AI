@@ -1,5 +1,6 @@
 import time
 import os
+import base64
 from typing import List, Dict, Any
 from langchain_core.messages import BaseMessage, SystemMessage
 
@@ -161,6 +162,74 @@ def answer_with_rag(
     }
 
 
+def answer_with_rag_and_image(
+        question: str,
+        image_data: bytes,
+        creator_id: str,
+        influencer_name: str = None,
+        conversation_summaries: str = "",
+        influencer_personality_prompt: str = "",
+        recent_chat_history: List[BaseMessage] = None,
+        model: str | None = None,
+        provider: str | None = None,
+        temperature: float = 0.4,
+        max_tokens: int = 600,
+        use_cross_encoder: bool = True,
+) -> Dict[str, Any]:
+    """Answer question using RAG approach with image input."""
+    import base64
+
+    pack = influencer_retrieve(question, creator_id=creator_id, use_cross_encoder=use_cross_encoder)
+    prompt = format_pack(
+        creator_id,
+        question,
+        pack,
+        influencer_name=influencer_name,
+        conversation_summaries=conversation_summaries,
+        influencer_personality_prompt=influencer_personality_prompt,
+        recent_chat_history=recent_chat_history,
+    )
+
+    image_base64 = base64.b64encode(image_data).decode('utf-8')
+
+    provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
+    if provider == "openai":
+        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-mini")
+    else:
+        model = model or os.getenv("OLLAMA_RAG_MODEL", "llama3.1")
+
+    messages = [
+        {"role": "system",
+         "content": "You are a helpful assistant who speaks in the influencer's authentic voice while staying factual. You can see and analyze images provided by the user."},
+        {"role": "user", "content": [
+            {"type": "text", "text": prompt},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+        ]}
+    ]
+
+    tmodel = time.time()
+    if provider == "openai":
+        text = _openai_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+    else:
+        messages_fallback = [
+            {"role": "system",
+             "content": "You are a helpful assistant who speaks in the influencer's authentic voice while staying factual. The user has provided an image, but I can only describe it as: " + question},
+            {"role": "user", "content": prompt}
+        ]
+        text = _ollama_chat(messages_fallback, model=model, temperature=temperature, max_tokens=max_tokens)
+    TIMINGS['answer_with_rag_model_call'] = time.time() - tmodel
+
+    return {
+        "provider": provider,
+        "model": model,
+        "question": question,
+        "lenses_used": pack.get("lenses_used", []),
+        "reflections": pack.get("reflections", []),
+        "memories": pack.get("memories", []),
+        "answer": text
+    }
+
+
 def generate_influencer_answer(state: State) -> State:
     """Generate influencer answer using RAG."""
     creator_id = state.get('creator_id') or ""
@@ -171,7 +240,7 @@ def generate_influencer_answer(state: State) -> State:
     # Pass conversation summaries separately rather than combining with question
     user_question = state.get('user_query', '')
     conversation_summaries = state.get('retrieved_summaries', '')
-    
+
     # Get recent chat history excluding the current user message to avoid duplication with User question
     full_chat_history = state.get('chat_history', [])
     if full_chat_history and getattr(full_chat_history[-1], 'type', '') == 'human':
@@ -179,18 +248,63 @@ def generate_influencer_answer(state: State) -> State:
     else:
         recent_chat_history = full_chat_history[-PAST_CHAT_HISTORY_CNT:]
 
+    # Check if we have image data to include in the final response
+    input_media_type = state.get('input_media_type', 'text')
+    image_data = state.get('image_data')
+    image_description = state.get('image_description', '')
+
     tgen = time.time()
-    out = answer_with_rag(
-        user_question,
-        creator_id=creator_id,
-        influencer_name=influencer_name,
-        conversation_summaries=conversation_summaries,
-        influencer_personality_prompt=personality,
-        recent_chat_history=recent_chat_history,
-        temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
-        max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
-        use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
-    )
+
+    # For image inputs, we need to modify the RAG call to include the image
+    if input_media_type == 'image' and image_data:
+        # Ensure image_data is bytes for the image processing
+        if isinstance(image_data, str):
+            try:
+                image_data = base64.b64decode(image_data)
+            except Exception as e:
+                print(f"Warning: Could not decode image data for final processing: {e}")
+                # Fall back to text-only processing
+                image_data = None
+
+        if image_data:
+            out = answer_with_rag_and_image(
+                user_question,
+                image_data,
+                creator_id=creator_id,
+                influencer_name=influencer_name,
+                conversation_summaries=conversation_summaries,
+                influencer_personality_prompt=personality,
+                recent_chat_history=recent_chat_history,
+                temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
+                max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
+                use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
+            )
+        else:
+            # Fall back to text-only if image processing failed
+            out = answer_with_rag(
+                user_question,
+                creator_id=creator_id,
+                influencer_name=influencer_name,
+                conversation_summaries=conversation_summaries,
+                influencer_personality_prompt=personality,
+                recent_chat_history=recent_chat_history,
+                temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
+                max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
+                use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
+            )
+    else:
+        out = answer_with_rag(
+            user_question,
+            creator_id=creator_id,
+            influencer_name=influencer_name,
+            conversation_summaries=conversation_summaries,
+            influencer_personality_prompt=personality,
+            recent_chat_history=recent_chat_history,
+            temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
+            max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
+            use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
+        )
+
     TIMINGS['generate_influencer_answer'] = time.time() - tgen
     sources = {
         "lenses_used": out.get("lenses_used", []),

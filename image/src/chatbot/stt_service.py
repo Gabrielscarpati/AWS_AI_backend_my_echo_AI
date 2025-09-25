@@ -25,7 +25,7 @@ class OpenAIWhisperSTT:
         Convert audio to text using OpenAI Whisper API.
 
         Args:
-            audio_data: Base64 encoded audio data
+            audio_data: Raw audio file bytes (not base64 encoded)
             language: Language code (default: 'en')
 
         Returns:
@@ -43,9 +43,14 @@ class OpenAIWhisperSTT:
             "Authorization": f"Bearer {self.api_key}",
         }
 
-        # Prepare the audio file data
+        # Create a file-like object from the bytes
+        from io import BytesIO
+        audio_file = BytesIO(audio_data)
+        audio_file.name = "audio.mp3"  # Set a name for the file
+
+        # Prepare the audio file data - let Whisper auto-detect format
         files = {
-            "file": ("audio.wav", audio_data, "audio/wav")
+            "file": ("audio.mp3", audio_file, "audio/mp3")
         }
 
         data = {
@@ -62,6 +67,7 @@ class OpenAIWhisperSTT:
                 result = response.json()
                 transcribed_text = result.get("text", "").strip()
                 if transcribed_text:
+                    print(f"✅ Audio transcribed successfully: '{transcribed_text[:100]}...'")
                     return transcribed_text
                 else:
                     print("Empty transcription result")
@@ -84,7 +90,7 @@ def transcribe_audio(audio_data: bytes) -> Optional[str]:
     Transcribe audio data to text.
 
     Args:
-        audio_data: Base64 encoded audio data
+        audio_data: Raw audio file bytes (not base64 encoded)
 
     Returns:
         Transcribed text or None if failed
