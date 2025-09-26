@@ -15,6 +15,8 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/venv/bin/python /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/local_test.py
 
 
+curl -s http://influencer-brain-alb-1945743283.us-east-1.elb.amazonaws.com/version
+
 
 ADD data to pinecone.
 python3 - <<'PY'

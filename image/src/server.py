@@ -44,7 +44,7 @@ async def health():
 
 @app.get("/version")
 async def version():
-    return {"version": "1.0.7", "description": "Improved the security logic to be parallel"}
+    return {"version": "1.0.8", "description": "added voice and image features"}
 
 
 @app.post("/chat")

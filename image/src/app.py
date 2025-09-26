@@ -5,7 +5,6 @@ import os
 
 from chatbot.orchestrator import chatbot_clio, PATTERN_USER
 from dotenv import load_dotenv
-from supabase_utils import create_message, get_test_credentials
 from langchain_core.messages import HumanMessage, AIMessage
 
 load_dotenv()
@@ -27,7 +26,8 @@ def handler(event, context):
             "audio_data": <base64_encoded_audio_data>,
             "image_data": <base64_encoded_image_data>,
             "user_query": <text_query>,  # For text input or as backup
-            "should_generate_tts": <boolean>  # Whether to generate TTS output
+            "should_generate_tts": <boolean>,  # Whether to generate TTS output
+            "elevenlabs_voice_id": <optional_voice_id>  # ElevenLabs voice ID for this creator
         }
     }
     Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str, "audio_output": "...", "audio_output_url": "..."}
@@ -61,6 +61,7 @@ def handler(event, context):
         image_data = payload.get("image_data")
         user_query = payload.get("user_query", "")
         should_generate_tts = payload.get("should_generate_tts", False)
+        elevenlabs_voice_id = payload.get("elevenlabs_voice_id")
 
         # Validate media data
         if input_media_type == "audio" and not audio_data:
@@ -143,6 +144,7 @@ def handler(event, context):
             "image_data": image_data,
             "user_query": user_query,
             "should_generate_tts": should_generate_tts,
+            "elevenlabs_voice_id": elevenlabs_voice_id,
         }
         
         import time

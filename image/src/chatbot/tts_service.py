@@ -107,11 +107,6 @@ class ElevenLabsTTS:
 tts_service = ElevenLabsTTS()
 
 
-def should_generate_tts(msgs_cnt_by_user: int) -> bool:
-    """Check if TTS should be generated for this message count."""
-    return msgs_cnt_by_user % 15 == 0
-
-
 def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
     """
     Generate TTS response and update state.
@@ -123,18 +118,17 @@ def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         Updated state with TTS data
     """
-    msgs_cnt = state.get("msgs_cnt_by_user", 0)
-
-    # Check if TTS should be generated based on API field OR message count
+    # Check if TTS should be generated based on API field only
     should_generate = state.get("should_generate_tts", False)
-    generate_by_count = should_generate_tts(msgs_cnt)
 
-    if not (should_generate or generate_by_count):
+    if not should_generate:
         return state
 
-    print(f"Generating TTS for message #{msgs_cnt}")
+    print("Generating TTS based on API request")
 
-    tts_result = tts_service.text_to_speech(text)
+    # Get voice ID from state, fallback to default if not provided
+    voice_id = state.get("elevenlabs_voice_id")
+    tts_result = tts_service.text_to_speech(text, voice_id=voice_id)
 
     if tts_result:
         return {
