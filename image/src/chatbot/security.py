@@ -15,7 +15,7 @@ from .conversation import answer_with_rag
 from .retrieval import TIMINGS
 
 # Import llm from models module
-from .models import security_llm
+# from .models import security_llm
 
 
 def check_openai_moderation(text: str) -> Dict[str, Any]:
@@ -107,59 +107,6 @@ def check_perspective_api(text: str) -> Dict[str, Any]:
         return {"flagged": False, "categories": [], "scores": {}, "provider": "perspective_api", "error": str(e)}
 
 
-def check_custom_security_prompt(text: str) -> Dict[str, Any]:
-    """Use a custom LLM prompt to check for malicious content."""
-    try:
-        security_prompt = """You are a content safety analyzer. Analyze the following text for potential security issues, harmful content, or policy violations.
-
-Look for:
-1. Personal information leaks (emails, phone numbers, addresses, SSN, etc.)
-2. Malicious instructions or attempts to manipulate users
-3. Inappropriate sexual content
-4. Hate speech or discrimination
-5. Violence or threats
-6. Misinformation or false claims presented as fact
-7. Attempts to bypass safety measures
-8. Requests for illegal activities
-9. Phishing or scam attempts
-10. Content that could harm minors
-
-Text to analyze: "{text}"
-
-Respond with a JSON object containing:
-- "flagged": true/false
-- "categories": list of issues found (if any)
-- "severity": "low", "medium", or "high"
-- "explanation": brief explanation of concerns (if flagged)
-
-Be precise and avoid false positives for normal conversation."""
-
-        response = security_llm.invoke([
-            SystemMessage(content=security_prompt.format(text=text))
-        ])
-
-        # Try to parse JSON response
-        try:
-            result = json.loads(response.content.strip())
-            result["provider"] = "custom_llm_prompt"
-            return result
-        except json.JSONDecodeError:
-            # Fallback parsing if JSON is malformed
-            content = response.content.lower()
-            flagged = "true" in content and ("flagged" in content or "violation" in content)
-            return {
-                "flagged": flagged,
-                "categories": ["parsing_error"],
-                "severity": "low" if not flagged else "medium",
-                "explanation": "Could not parse security check response",
-                "provider": "custom_llm_prompt",
-                "raw_response": response.content
-            }
-    except Exception as e:
-        print(f"Custom security prompt check failed: {e}")
-        return {"flagged": False, "categories": [], "severity": "low", "provider": "custom_llm_prompt", "error": str(e)}
-
-
 def perform_security_check(text: str) -> Dict[str, Any]:
     """Perform comprehensive security check using multiple methods in parallel."""
     if not SECURITY_ENABLED:
@@ -180,8 +127,7 @@ def perform_security_check(text: str) -> Dict[str, Any]:
         tasks.append(("openai", check_openai_moderation))
     if PERSPECTIVE_API_ENABLED:
         tasks.append(("perspective", check_perspective_api))
-    if CUSTOM_SECURITY_PROMPT_ENABLED:
-        tasks.append(("custom", check_custom_security_prompt))
+    # Removed custom security prompt
 
     # Execute in parallel
     futures = []

@@ -77,6 +77,22 @@ def format_pack(
     return (prefix + "\n\n" + body) if prefix else body
 
 
+def _mistral_chat(messages: List[Dict[str, str]], model: str, temperature: float, max_tokens: int) -> str:
+    from openai import OpenAI
+    import os
+    client = OpenAI(
+        base_url="https://api.mistral.ai/v1",
+        api_key=os.getenv("MISTRAL_API_KEY")
+    )
+    res = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return res.choices[0].message.content
+
+
 def _openai_chat(messages: List[Dict[str, str]], model: str, temperature: float, max_tokens: int) -> str:
     """Call OpenAI chat API."""
     from openai import OpenAI
@@ -132,9 +148,11 @@ def answer_with_rag(
         recent_chat_history=recent_chat_history,
     )
 
-    provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
+    provider = provider or ("mistral" if os.getenv("MISTRAL_API_KEY") else "openai" if os.getenv("OPENAI_API_KEY") else "ollama")
     if provider == "openai":
-        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-mini")
+        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-nano")
+    elif provider == "mistral":
+        model = model or "mistral-small-2506"
     else:
         model = model or os.getenv("OLLAMA_RAG_MODEL", "llama3.1")
 
@@ -147,6 +165,8 @@ def answer_with_rag(
     tmodel = time.time()
     if provider == "openai":
         text = _openai_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+    elif provider == "mistral":
+        text = _mistral_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
     else:
         text = _ollama_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
     TIMINGS['answer_with_rag_model_call'] = time.time() - tmodel
@@ -192,24 +212,33 @@ def answer_with_rag_and_image(
 
     image_base64 = base64.b64encode(image_data).decode('utf-8')
 
-    provider = provider or ("openai" if os.getenv("OPENAI_API_KEY") else "ollama")
+    provider = provider or ("mistral" if os.getenv("MISTRAL_API_KEY") else "openai" if os.getenv("OPENAI_API_KEY") else "ollama")
     if provider == "openai":
-        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-mini")
+        model = model or os.getenv("OPENAI_RAG_MODEL", "gpt-4.1-nano")
+    elif provider == "mistral":
+        model = model or "mistral-small-latest"
     else:
         model = model or os.getenv("OLLAMA_RAG_MODEL", "llama3.1")
 
-    messages = [
-        {"role": "system",
-         "content": "You are a helpful assistant who speaks in the influencer's authentic voice while staying factual. You can see and analyze images provided by the user."},
-        {"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
-        ]}
-    ]
-
     tmodel = time.time()
     if provider == "openai":
+        messages = [
+            {"role": "system",
+             "content": "You are a helpful assistant who speaks in the influencer's authentic voice while staying factual. You can see and analyze images provided by the user."},
+            {"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+            ]}
+        ]
         text = _openai_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
+    elif provider == "mistral":
+        # Mistral doesn't support vision yet, fallback to text-only
+        messages_fallback = [
+            {"role": "system",
+             "content": "You are a helpful assistant who speaks in the influencer's authentic voice while staying factual. The user has provided an image related to their question, but image analysis is not available."},
+            {"role": "user", "content": prompt}
+        ]
+        text = _mistral_chat(messages_fallback, model=model, temperature=temperature, max_tokens=max_tokens)
     else:
         messages_fallback = [
             {"role": "system",

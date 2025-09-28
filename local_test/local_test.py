@@ -24,12 +24,32 @@ import base64
 from pathlib import Path
 
 # Add the image/src directory to Python path so we can import the modules
-sys.path.insert(0, str(Path(__file__).parent / "image" / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "image" / "src"))
 
-# Change to the image/src directory so relative imports work
-os.chdir(Path(__file__).parent / "image" / "src")
+# Remove the os.chdir since image/src doesn't exist in local_test
+# os.chdir(Path(__file__).parent / "image" / "src")
 
 from app import handler
+
+
+AUDIO_BASE64_FILE = Path(__file__).parent / "audio_base64.txt"
+IMAGE_BASE64_FILE = Path(__file__).parent / "image_base64.txt"
+
+
+def _load_media_base64(file_path: Path) -> str | None:
+    """Load base64 payload from file, ignoring comments and blank lines."""
+    if not file_path.exists():
+        print(f"❌ {file_path.name} not found. Please create it with base64 data.")
+        return None
+
+    lines = [line.strip() for line in file_path.read_text(encoding="utf-8").splitlines()
+             if line.strip() and not line.strip().startswith('#')]
+    if not lines:
+        print(f"❌ {file_path.name} is empty or contains only comments. Using text mode instead.")
+        return None
+
+    return "".join(lines)
+
 
 def get_test_credentials():
     """Mock test credentials since we're not using Supabase."""
@@ -52,7 +72,7 @@ def create_test_event(
         user_message: The user's message
         user_id: User ID (optional, defaults to "test_user_123" for testing)
         creator_id: Creator ID (optional, defaults to "aaron_ai")
-        influencer_name: Influencer name (optional, defaults to "mihir")
+        influencer_name: Influencer name (optional, defaults to "Aaron")
         influencer_personality_prompt: Personality prompt (optional, uses default if not provided)
         input_media_type: Type of input ("text", "audio", "image") - defaults to "text"
         should_generate_tts: Whether to generate TTS output - defaults to False
@@ -62,14 +82,14 @@ def create_test_event(
         # Use default test user ID
         user_id = "test_user_123"
     
-    # Hardcoded for testing with mihir_ai
+    # Hardcoded for testing with aaron_ai
     if not creator_id:
         creator_id = "aaron_ai"
     if influencer_name is None:
         influencer_name = "Aaron"
     if influencer_personality_prompt is None:
         influencer_personality_prompt = (
-            "Persona: You are Mihir. Speak with intelligence, technical expertise, and thoughtful analysis. "
+            "Persona: You are Aaron. Speak with intelligence, technical expertise, and thoughtful analysis. "
             "Be helpful, precise, and supportive. Offer specific, practical guidance based on your experiences."
         )
 
@@ -134,22 +154,12 @@ def select_media_type():
     media_data = None
 
     if media_type in ['audio', 'image']:
-        print(f"\n📝 Enter base64 encoded {media_type} data:")
-        print("(Paste your base64 string and press Enter)")
-        print("-" * 50)
-
-        try:
-            media_data = input().strip()
-            if not media_data:
-                print(f"❌ {media_type.capitalize()} data cannot be empty. Using text mode instead.")
-                media_type = 'text'
-                media_data = None
-            else:
-                print(f"✅ {media_type.capitalize()} data received ({len(media_data)} characters)")
-        except KeyboardInterrupt:
-            print(f"\n❌ No {media_type} data provided. Using text mode instead.")
+        base64_file = AUDIO_BASE64_FILE if media_type == 'audio' else IMAGE_BASE64_FILE
+        media_data = _load_media_base64(base64_file)
+        if not media_data:
             media_type = 'text'
-            media_data = None
+        else:
+            print(f"✅ Loaded {media_type} base64 from {base64_file.name} ({len(media_data)} characters)")
 
     # Show usage examples for the selected media type
     show_media_usage_examples(media_type)
@@ -166,20 +176,16 @@ def show_media_usage_examples(media_type: str):
         print("📝 Text Mode: Just type your message normally")
         print("💬 Example: 'Hello, how are you?'")
     elif media_type == 'audio':
-        print("🎵 Audio Mode: Enter base64 encoded audio data")
-        print("💡 You can get base64 from:")
-        print("   - Recording audio and converting to base64")
-        print("   - Speech-to-text tools that output base64")
-        print("   - Example: 'UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1f...'")
-        print("   - For testing: Use any valid base64 string (system will handle invalid data gracefully)")
+        print("🎵 Audio Mode: Reads base64 audio from audio_base64.txt")
+        print("💡 Populate the file with a single base64 payload (no data URI prefix)")
+        print("   - Leave comments (lines starting with #) for notes if needed")
+        print("   - Example line: UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1f...")
+        print("   - Remove the placeholder comment and paste your base64 data")
     elif media_type == 'image':
-        print("🖼️  Image Mode: Enter base64 encoded image data")
-        print("💡 You can get base64 from:")
-        print("   - Image files converted to base64")
-        print("   - Image upload tools that output base64")
-        print("   - Use: echo 'data:image/jpeg;base64,'$(base64 image.jpg)")
-        print("   - Example: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCABkAGQDA...'")
-        print("   - For testing: Use any valid base64 string (system will handle invalid data gracefully)")
+        print("🖼️  Image Mode: Reads base64 image from image_base64.txt")
+        print("💡 Populate the file with a single base64 payload (no data URI prefix)")
+        print("   - Comments starting with # are ignored")
+        print("   - Example line: /9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQY...")
 
     if media_type in ['audio', 'image']:
         print(f"\n🔄 The {media_type} will be processed and converted to text for analysis")
@@ -217,7 +223,7 @@ def main(enable_tts: bool = False):
     
     user_id = None
     creator_id = "aaron_ai"  # Hardcoded for testing
-    influencer_name = "mihir"  # Hardcoded for testing
+    influencer_name = "Aaron"  # Hardcoded for testing
     influencer_personality_prompt = (
         '''
 You are simulating the individual  Aaron.
@@ -367,7 +373,7 @@ Your knowledge comes only from:
     print("🎵 AUDIO GENERATION SUMMARY")
     print("=" * 50)
 
-    audio_files = [f for f in os.listdir('.') if f.startswith('local_test_audio_msg_') and f.endswith('.mp3')]
+    audio_files = [f for f in os.listdir('..') if f.startswith('local_test_audio_msg_') and f.endswith('.mp3')]
     if audio_files:
         print(f"✅ Generated {len(audio_files)} audio files:")
         for i, audio_file in enumerate(audio_files, 1):
