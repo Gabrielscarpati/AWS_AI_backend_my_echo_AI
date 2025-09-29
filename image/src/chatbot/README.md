@@ -59,12 +59,11 @@ To use media inputs, include these fields in your request payload:
 
 Required environment variables for media functionality:
 
-- `ELEVENLABS_API_KEY` - Your ElevenLabs API key for TTS
-- `ELEVENLABS_VOICE_ID` - Voice ID to use (optional, defaults to 21m00Tcm4TlvDq8ikWAM)
-- `TTS_PROVIDER` - "elevenlabs" or "f5tts" (optional, defaults to "elevenlabs")
+- `FISH_AI_API_KEY` - Your Fish AI API key for TTS
+- `ASSEMBLY_AI_API_KEY` - Your Assembly AI API key for STT
 
 All existing environment variables are still required:
-- `OPENAI_API_KEY` - For GPT models and Whisper STT
+- `OPENAI_API_KEY` - For GPT models
 - `PINECONE_API_KEY` - For vector database
 
 ## Media Support
@@ -74,12 +73,12 @@ The chatbot now supports audio and image inputs in addition to text:
 ### Input Types
 
 - **Text Input** (default): Regular text messages
-- **Audio Input**: Speech-to-text conversion using OpenAI Whisper
+- **Audio Input**: Speech-to-text conversion using Assembly AI
 - **Image Input**: Image description using GPT-4.1-mini, then processed as text
 
 ### Audio Output (TTS)
 
-Every 15th user message automatically triggers text-to-speech conversion using ElevenLabs API.
+Every 15th user message automatically triggers text-to-speech conversion using Fish AI API.
 
 ### Media Processing Flow
 
@@ -94,9 +93,9 @@ Every 15th user message automatically triggers text-to-speech conversion using E
 ### New Modules
 
 - **`media_processing.py`** - Handles audio/image input processing
-- **`stt_service.py`** - OpenAI Whisper speech-to-text service
+- **`stt_service.py`** - Assembly AI speech-to-text service
 - **`image_service.py`** - GPT-4.1-mini image description service
-- **`tts_service.py`** - ElevenLabs text-to-speech service
+- **`tts_service.py`** - Fish AI text-to-speech service
 
 ## Architecture
 

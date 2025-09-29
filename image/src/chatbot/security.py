@@ -8,7 +8,6 @@ from langchain_core.messages import BaseMessage, SystemMessage
 from .state import State
 from .config import (
     SECURITY_ENABLED, MAX_SECURITY_RETRIES, OPENAI_MODERATION_ENABLED,
-    PERSPECTIVE_API_ENABLED, PERSPECTIVE_API_KEY, CUSTOM_SECURITY_PROMPT_ENABLED,
     PAST_CHAT_HISTORY_CNT
 )
 from .conversation import answer_with_rag
@@ -43,70 +42,6 @@ def check_openai_moderation(text: str) -> Dict[str, Any]:
         return {"flagged": False, "categories": [], "scores": {}, "provider": "openai_moderation", "error": str(e)}
 
 
-def check_perspective_api(text: str) -> Dict[str, Any]:
-    """Check content using Google's Perspective API."""
-    if not PERSPECTIVE_API_KEY:
-        return {"flagged": False, "categories": [], "scores": {}, "provider": "perspective_api",
-                "error": "API key not configured"}
-
-    try:
-        import requests
-
-        url = f'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze?key={PERSPECTIVE_API_KEY}'
-
-        data = {
-            'comment': {'text': text},
-            'requestedAttributes': {
-                'TOXICITY': {},
-                'SEVERE_TOXICITY': {},
-                'IDENTITY_ATTACK': {},
-                'INSULT': {},
-                'PROFANITY': {},
-                'THREAT': {},
-                'SEXUALLY_EXPLICIT': {},
-                'FLIRTATION': {}
-            }
-        }
-
-        response = requests.post(url, data=json.dumps(data), timeout=10)
-        response.raise_for_status()
-        result = response.json()
-
-        scores = {}
-        flagged_categories = []
-        flagged = False
-
-        # Define thresholds for flagging
-        thresholds = {
-            'TOXICITY': 0.7,
-            'SEVERE_TOXICITY': 0.5,
-            'IDENTITY_ATTACK': 0.6,
-            'INSULT': 0.7,
-            'PROFANITY': 0.8,
-            'THREAT': 0.5,
-            'SEXUALLY_EXPLICIT': 0.8,
-            'FLIRTATION': 0.9
-        }
-
-        for attribute, data in result.get('attributeScores', {}).items():
-            score = data['summaryScore']['value']
-            scores[attribute.lower()] = score
-
-            if score > thresholds.get(attribute, 0.7):
-                flagged = True
-                flagged_categories.append(attribute.lower())
-
-        return {
-            "flagged": flagged,
-            "categories": flagged_categories,
-            "scores": scores,
-            "provider": "perspective_api"
-        }
-    except Exception as e:
-        print(f"Perspective API check failed: {e}")
-        return {"flagged": False, "categories": [], "scores": {}, "provider": "perspective_api", "error": str(e)}
-
-
 def perform_security_check(text: str) -> Dict[str, Any]:
     """Perform comprehensive security check using multiple methods in parallel."""
     if not SECURITY_ENABLED:
@@ -125,8 +60,6 @@ def perform_security_check(text: str) -> Dict[str, Any]:
     tasks = []
     if OPENAI_MODERATION_ENABLED:
         tasks.append(("openai", check_openai_moderation))
-    if PERSPECTIVE_API_ENABLED:
-        tasks.append(("perspective", check_perspective_api))
     # Removed custom security prompt
 
     # Execute in parallel

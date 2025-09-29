@@ -22,6 +22,7 @@ import os
 import json
 import base64
 from pathlib import Path
+from datetime import datetime
 
 # Add the image/src directory to Python path so we can import the modules
 sys.path.insert(0, str(Path(__file__).parent.parent / "image" / "src"))
@@ -193,7 +194,8 @@ def show_media_usage_examples(media_type: str):
 
     print("=" * 50)
 
-def main(enable_tts: bool = False):
+def main(enable_tts: bool = True):
+    """Main function with TTS enabled by default."""
     print("🤖 Starting local chatbot test...")
     print("=" * 50)
 
@@ -335,6 +337,15 @@ Your knowledge comes only from:
                         with open(audio_file, "wb") as f:
                             f.write(audio_bytes)
                         print(f"   💾 Saved to: {audio_file}")
+
+                        # Save the generated audio as base64 to audio_base64.txt for future input use
+                        generated_base64 = response_data['audio_output']  # Already base64
+                        with open(AUDIO_BASE64_FILE, 'a', encoding='utf-8') as f:
+                            f.write(f"\n# Generated audio from test msg {msg_count} at {datetime.now().isoformat()}\n")
+                            f.write(f"# Length: {len(generated_base64)} characters\n")
+                            f.write(generated_base64 + '\n')
+                        print(f"   📝 Appended generated audio base64 to {AUDIO_BASE64_FILE.name}")
+
                     except Exception as e:
                         print(f"   ❌ Failed to save audio: {e}")
 
@@ -388,9 +399,8 @@ Your knowledge comes only from:
     print("=" * 50)
 
 if __name__ == "__main__":
-    import sys
-    # Check for TTS flag in command line arguments
-    enable_tts = "--tts" in sys.argv
+    # TTS is now always enabled by default
+    enable_tts = True
     if enable_tts:
         print("🎵 TTS generation enabled for all messages")
     main(enable_tts)

@@ -118,3 +118,5 @@ sentence-transformers==3.1.1
 rank-bm25==0.2.2
 fastapi==0.115.6
 uvicorn==0.34.0
+fish-audio-sdk==2025.6.3
+assemblyai==0.33.0

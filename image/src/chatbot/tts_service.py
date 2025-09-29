@@ -1,110 +1,87 @@
 """
-Text-to-Speech service using ElevenLabs API.
+Text-to-Speech service using Fish AI API.
 """
 import os
-import requests
 import base64
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
+from fish_audio_sdk import Session, TTSRequest
 
 load_dotenv()
 
 
-class ElevenLabsTTS:
-    """ElevenLabs Text-to-Speech service."""
+class FishAITTS:
+    """Fish AI Text-to-Speech service."""
 
     def __init__(self):
-        self.api_key = os.getenv("ELEVENLABS_API_KEY")
-        self.voice_id = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Default voice
-        self.base_url = "https://api.elevenlabs.io/v1"
-
+        self.api_key = os.getenv("FISH_AI_API_KEY")
+        
         if not self.api_key:
-            print("Warning: ELEVENLABS_API_KEY not found in environment variables")
+            print("Warning: FISH_AI_API_KEY not found in environment variables")
+        else:
+            self.session = Session(self.api_key)
 
     def text_to_speech(self, text: str, voice_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """
-        Convert text to speech using ElevenLabs API.
+        Convert text to speech using Fish AI API.
 
         Args:
             text: Text to convert to speech
-            voice_id: Optional voice ID to use (defaults to configured voice)
+            voice_id: Optional voice model ID to use
 
         Returns:
             Dict containing 'audio_data' (bytes) and 'content_type' or None if failed
         """
         if not self.api_key:
-            print("ElevenLabs API key not configured")
+            print("Fish AI API key not configured")
             return None
 
         if not text or not text.strip():
             print("Empty text provided for TTS")
             return None
 
-        # Use provided voice_id or default
-        target_voice_id = voice_id or self.voice_id
-
-        headers = {
-            "Accept": "audio/mpeg",
-            "Content-Type": "application/json",
-            "xi-api-key": self.api_key
-        }
-
-        data = {
-            "text": text.strip(),
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.8,
-                "style": 0.0,
-                "use_speaker_boost": True
-            }
-        }
-
         try:
-            url = f"{self.base_url}/text-to-speech/{target_voice_id}"
-            response = requests.post(url, json=data, headers=headers)
+            # Create a TTS request
+            request = TTSRequest(
+                text=text.strip(),
+                reference_id=voice_id,  # Optional: specify a voice model ID
+                format="mp3"  # Output format
+            )
 
-            if response.status_code == 200:
-                audio_data = response.content
+            # Generate audio data
+            audio_chunks = []
+            for chunk in self.session.tts(request):
+                audio_chunks.append(chunk)
+            
+            audio_data = b''.join(audio_chunks)
+            
+            if audio_data:
                 return {
                     "audio_data": audio_data,
                     "content_type": "audio/mpeg",
                     "size": len(audio_data)
                 }
             else:
-                print(f"ElevenLabs API error: {response.status_code} - {response.text}")
+                print("No audio data received from Fish AI")
                 return None
 
         except Exception as e:
-            print(f"Error calling ElevenLabs API: {e}")
+            print(f"Error calling Fish AI API: {e}")
             return None
 
     def get_available_voices(self) -> Optional[Dict[str, Any]]:
-        """Get list of available voices."""
+        """Get list of available voices (placeholder for Fish AI)."""
         if not self.api_key:
             return None
-
-        headers = {
-            "xi-api-key": self.api_key
-        }
-
-        try:
-            url = f"{self.base_url}/voices"
-            response = requests.get(url, headers=headers)
-
-            if response.status_code == 200:
-                return response.json()
-            else:
-                print(f"Error getting voices: {response.status_code} - {response.text}")
-                return None
-
-        except Exception as e:
-            print(f"Error getting voices: {e}")
-            return None
+        
+        # Fish AI doesn't provide a direct voice listing endpoint in the basic SDK
+        # This would need to be implemented based on their specific API documentation
+        print("Voice listing not implemented for Fish AI - refer to Fish AI documentation for available voice models")
+        return None
 
 
 # Global instance
-tts_service = ElevenLabsTTS()
+tts_service = FishAITTS()
 
 
 def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -126,8 +103,8 @@ def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
 
     print("Generating TTS based on API request")
 
-    # Get voice ID from state, fallback to default if not provided
-    voice_id = state.get("elevenlabs_voice_id")
+    # Get voice ID from state, fallback to None if not provided
+    voice_id = state.get("fish_ai_voice_id")
     tts_result = tts_service.text_to_speech(text, voice_id=voice_id)
 
     if tts_result:

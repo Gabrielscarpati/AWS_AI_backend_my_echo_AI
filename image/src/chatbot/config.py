@@ -4,8 +4,8 @@ from pathlib import Path
 
 # Configuration constants
 RETRIEVAL_SUMMARY_CNT = 3
-CONVERSATION_SUMMARY_THRESHOLD = 9
-PAST_CHAT_HISTORY_CNT = 9
+CONVERSATION_SUMMARY_THRESHOLD = 18
+PAST_CHAT_HISTORY_CNT = 18
 EMBEDDING_DIMENSION = 1024
 
 # Regex patterns
@@ -23,10 +23,7 @@ REF_FILE = INDEX_DIR / "reflections.json"
 SECURITY_ENABLED = os.getenv("SECURITY_ENABLED", "true").lower() in {"1", "true", "yes", "y"}
 MAX_SECURITY_RETRIES = int(os.getenv("MAX_SECURITY_RETRIES", "2"))
 OPENAI_MODERATION_ENABLED = os.getenv("OPENAI_MODERATION_ENABLED", "true").lower() in {"1", "true", "yes", "y"}
-PERSPECTIVE_API_ENABLED = os.getenv("PERSPECTIVE_API_ENABLED", "false").lower() in {"1", "true", "yes", "y"}
-PERSPECTIVE_API_KEY = os.getenv("PERSPECTIVE_API_KEY")
 CUSTOM_SECURITY_PROMPT_ENABLED = os.getenv("CUSTOM_SECURITY_PROMPT_ENABLED", "true").lower() in {"1", "true", "yes", "y"}
 
-ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-ELEVENLABS_VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Default voice
-TTS_PROVIDER = os.getenv("TTS_PROVIDER", "elevenlabs")  # "elevenlabs" or "f5tts"
+FISH_AI_API_KEY = os.getenv("FISH_AI_API_KEY")
+ASSEMBLY_AI_API_KEY = os.getenv("ASSEMBLY_AI_API_KEY")
