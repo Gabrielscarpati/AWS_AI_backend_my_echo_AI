@@ -28,10 +28,11 @@ def main():
         "body": json.dumps({
             "user_id": os.getenv("TEST_USER_ID", "test_user"),
             "creator_id": os.getenv("TEST_CREATOR_ID", "taylor_swift"),
+            "influencer_name": os.getenv("TEST_INFLUENCER_NAME", "test_influencer"),
+            "influencer_personality_prompt": os.getenv("TEST_PERSONALITY_PROMPT", "Test prompt"),
             "chat_history": [["user", "Hi, how are you?"]],
             "msgs_cnt_by_user": 1
         }),
-        "isBase64Encoded": False
     }
 
     print("Running local handler with event:")

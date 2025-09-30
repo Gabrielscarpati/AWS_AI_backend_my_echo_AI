@@ -16,6 +16,15 @@ Features:
 
 Note: Uses mock test credentials since no external authentication is needed.
 """
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load .env from image/src if it exists, otherwise from root
+env_path = Path(__file__).parent.parent / "image" / "src" / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    load_dotenv()  # Falls back to root or cwd
 
 import sys
 import os
@@ -63,7 +72,7 @@ def create_test_event(
     influencer_name: str = None,
     influencer_personality_prompt: str = None,
     input_media_type: str = "text",
-    should_generate_tts: bool = True,
+    should_generate_tts: bool = False,
     media_data: str = None,
 ):
     """
@@ -119,7 +128,6 @@ def create_test_event(
 
     event = {
         "body": json.dumps(payload),
-        "isBase64Encoded": False
     }
     
     return event
@@ -326,14 +334,20 @@ Your knowledge comes only from:
                 # Append assistant message to the running chat history as plain text
                 chat_history.append(response_data.get('response', ''))
 
-                if response_data.get('audio_output'):
+                if response_data.get('audio_output_url'):
                     print("🔊 Audio response generated (base64 encoded)")
                     print(f"   Audio URL available: {response_data.get('audio_output_url', 'N/A')[:50]}...")
-                    print(f"   Audio size: {len(response_data['audio_output'])} bytes")
+                    print(f"   Audio size: {len(response_data['audio_output_url'])} bytes")
 
                     audio_file = f"local_test_audio_msg_{msg_count}.mp3"
                     try:
-                        audio_bytes = base64.b64decode(response_data['audio_output'])
+                        audio_bytes = base64.b64decode(response_data['audio_output_url'])
+                        
+                        # Print audio format info for debugging
+                        base64_snippet = response_data['audio_output_url']
+                        print(f"   🔍 AI Audio Format: MP3 (base64 starts with: { base64_snippet }")
+                        print(f"   📏 Audio size: {len(audio_bytes)} bytes ({len(audio_bytes)/1024:.1f} KB)")
+                        
                         with open(audio_file, "wb") as f:
                             f.write(audio_bytes)
                         print(f"   💾 Saved to: {audio_file}")

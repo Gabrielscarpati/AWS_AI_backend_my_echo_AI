@@ -44,7 +44,7 @@ async def health():
 
 @app.get("/version")
 async def version():
-    return {"version": "1.0.8", "description": "added voice and image features"}
+    return {"version": "1.0.9", "description": "Fish ID voice renamed"}
 
 
 @app.post("/chat")
@@ -80,7 +80,6 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
 
         event = {
             "body": json.dumps(payload),
-            "isBase64Encoded": False,
         }
 
         result = lambda_handler(event, {})

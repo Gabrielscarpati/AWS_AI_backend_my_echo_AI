@@ -31,4 +31,4 @@ class State(TypedDict, total=False):
     audio_output_url: str  # URL to the generated audio file
     image_description: str  # Description of the image from GPT-4.1-mini
     should_generate_tts: bool  # Whether to generate TTS output (API controlled)
-    fish_ai_voice_id: str  # Fish AI voice ID for this creator
+    tts_voice_id: str  # TTS voice ID for this creator

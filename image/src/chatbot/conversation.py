@@ -277,62 +277,22 @@ def generate_influencer_answer(state: State) -> State:
     else:
         recent_chat_history = full_chat_history[-PAST_CHAT_HISTORY_CNT:]
 
-    # Check if we have image data to include in the final response
-    input_media_type = state.get('input_media_type', 'text')
-    image_data = state.get('image_data')
-    image_description = state.get('image_description', '')
+    # For images, user_query already includes the description from media_processing
+    # No need for special image handling here - use text-only RAG
 
     tgen = time.time()
 
-    # For image inputs, we need to modify the RAG call to include the image
-    if input_media_type == 'image' and image_data:
-        # Ensure image_data is bytes for the image processing
-        if isinstance(image_data, str):
-            try:
-                image_data = base64.b64decode(image_data)
-            except Exception as e:
-                print(f"Warning: Could not decode image data for final processing: {e}")
-                # Fall back to text-only processing
-                image_data = None
-
-        if image_data:
-            out = answer_with_rag_and_image(
-                user_question,
-                image_data,
-                creator_id=creator_id,
-                influencer_name=influencer_name,
-                conversation_summaries=conversation_summaries,
-                influencer_personality_prompt=personality,
-                recent_chat_history=recent_chat_history,
-                temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
-                max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
-                use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
-            )
-        else:
-            # Fall back to text-only if image processing failed
-            out = answer_with_rag(
-                user_question,
-                creator_id=creator_id,
-                influencer_name=influencer_name,
-                conversation_summaries=conversation_summaries,
-                influencer_personality_prompt=personality,
-                recent_chat_history=recent_chat_history,
-                temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
-                max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
-                use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
-            )
-    else:
-        out = answer_with_rag(
-            user_question,
-            creator_id=creator_id,
-            influencer_name=influencer_name,
-            conversation_summaries=conversation_summaries,
-            influencer_personality_prompt=personality,
-            recent_chat_history=recent_chat_history,
-            temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
-            max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
-            use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
-        )
+    out = answer_with_rag(
+        user_question,
+        creator_id=creator_id,
+        influencer_name=influencer_name,
+        conversation_summaries=conversation_summaries,
+        influencer_personality_prompt=personality,
+        recent_chat_history=recent_chat_history,
+        temperature=float(os.getenv("INFLUENCER_RAG_TEMPERATURE", 0.4)),
+        max_tokens=int(os.getenv("INFLUENCER_RAG_MAX_TOKENS", 600)),
+        use_cross_encoder=os.getenv("INFLUENCER_RAG_USE_CE", "false").lower() in {"1", "true", "yes", "y"},
+    )
 
     TIMINGS['generate_influencer_answer'] = time.time() - tgen
     sources = {

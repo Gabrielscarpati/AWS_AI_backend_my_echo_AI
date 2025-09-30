@@ -59,7 +59,6 @@ Your knowledge comes only from:
 
     return {
         "body": json.dumps(defaults),
-        "isBase64Encoded": False
     }
 
 def run_handler(user_message="What's your name?", **kwargs):

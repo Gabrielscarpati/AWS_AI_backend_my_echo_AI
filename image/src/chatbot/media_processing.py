@@ -7,6 +7,8 @@ from .state import State
 from .stt_service import transcribe_audio
 from .image_service import process_image_input
 from .tts_service import generate_tts_response
+from PIL import Image
+import io
 
 
 def process_media_input(state: State) -> State:
@@ -73,6 +75,23 @@ def process_media_input(state: State) -> State:
                     image_data += '=' * (4 - missing_padding)
 
                 image_data = base64.b64decode(image_data)
+
+                # Resize image to reduce token usage
+                try:
+                    img = Image.open(io.BytesIO(image_data))
+                    # Convert to RGB if necessary (for JPEG)
+                    if img.mode != 'RGB':
+                        img = img.convert('RGB')
+                    # Resize maintaining aspect ratio
+                    img.thumbnail((1024, 1024))
+                    # Save as JPEG with quality 85
+                    buffer = io.BytesIO()
+                    img.save(buffer, format='JPEG', quality=85)
+                    image_data = buffer.getvalue()
+                    print("Image resized to max 1024x1024 for efficiency.")
+                except Exception as resize_e:
+                    print(f"Warning: Could not resize image: {resize_e}")
+
             except Exception as e:
                 print(f"Error decoding image data: {e}")
                 print("💡 Tip: Make sure your base64 image data:")

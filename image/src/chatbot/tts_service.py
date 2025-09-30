@@ -104,7 +104,7 @@ def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
     print("Generating TTS based on API request")
 
     # Get voice ID from state, fallback to None if not provided
-    voice_id = state.get("fish_ai_voice_id")
+    voice_id = state.get("tts_voice_id")
     tts_result = tts_service.text_to_speech(text, voice_id=voice_id)
 
     if tts_result:
