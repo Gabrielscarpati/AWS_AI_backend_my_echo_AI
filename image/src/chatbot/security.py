@@ -98,7 +98,15 @@ def perform_security_check(text: str) -> Dict[str, Any]:
 def security_check_node(state: State) -> State:
     """Node to perform security checks on the AI response."""
     if not SECURITY_ENABLED:
+        # Preserve RAG JSON fields
+        rag_fields = {
+            'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+            'context_data_json': state.get('context_data_json', ''),
+            'expert_analysis_json': state.get('expert_analysis_json', ''),
+            'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        }
         return {
+            **rag_fields,
             "security_check_passed": True,
             "security_flags": [],
             "security_retry_count": 0
@@ -106,7 +114,15 @@ def security_check_node(state: State) -> State:
 
     response_text = state.get("response", "")
     if not response_text:
+        # Preserve RAG JSON fields
+        rag_fields = {
+            'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+            'context_data_json': state.get('context_data_json', ''),
+            'expert_analysis_json': state.get('expert_analysis_json', ''),
+            'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        }
         return {
+            **rag_fields,
             "security_check_passed": True,
             "security_flags": [],
             "security_retry_count": 0
@@ -119,9 +135,18 @@ def security_check_node(state: State) -> State:
     # Perform security check
     security_result = perform_security_check(response_text)
 
+    # Preserve RAG JSON fields
+    rag_fields = {
+        'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+        'context_data_json': state.get('context_data_json', ''),
+        'expert_analysis_json': state.get('expert_analysis_json', ''),
+        'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+    }
+
     if security_result["overall_flagged"]:
         retry_count = state.get("security_retry_count", 0)
         return {
+            **rag_fields,
             "security_check_passed": False,
             "security_flags": security_result["flags"],
             "security_retry_count": retry_count,
@@ -129,6 +154,7 @@ def security_check_node(state: State) -> State:
         }
     else:
         return {
+            **rag_fields,
             "security_check_passed": True,
             "security_flags": [],
             "security_retry_count": state.get("security_retry_count", 0),
@@ -140,13 +166,22 @@ def regenerate_safe_response(state: State) -> State:
     """Regenerate response with additional safety instructions when flagged."""
     retry_count = state.get("security_retry_count", 0)
 
+    # Preserve RAG JSON fields from current state
+    rag_fields = {
+        'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+        'context_data_json': state.get('context_data_json', ''),
+        'expert_analysis_json': state.get('expert_analysis_json', ''),
+        'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+    }
+
     if retry_count >= MAX_SECURITY_RETRIES:
         # Max retries reached, return a safe fallback response
         return {
+            **rag_fields,
             "response": "I apologize, but I'm unable to provide a response to that question at this time. Please try rephrasing your question or ask about something else.",
             "security_retry_count": retry_count + 1,
             "security_check_passed": True,
-            "security_flags": []
+            "security_flags": [],
         }
 
     # Add safety instructions to the generation
@@ -190,10 +225,20 @@ CRITICAL SAFETY REQUIREMENTS:
     )
     TIMINGS['regenerate_safe_response'] = time.time() - tgen
 
+    recent_history_json = json.dumps([{"role": "USER" if msg.type == "human" else "ASSISTANT", "content": msg.content} for msg in recent_chat_history])
+    context_data_json = json.dumps(out.get("context_data", []))
+    expert_analysis_json = json.dumps(out.get("expert_analysis", []))
+    interview_style_json = json.dumps(out.get("interview_and_communication_style", []))
+
     return {
+        **rag_fields,  # Preserve original RAG data
         "response": out.get("answer", ""),
         "security_retry_count": retry_count + 1,
         "influencer_answer": out.get("answer", ""),
+        "recent_chat_history_json": recent_history_json,
+        "context_data_json": context_data_json,
+        "expert_analysis_json": expert_analysis_json,
+        "interview_and_communication_style_json": interview_style_json,
     }
 
 

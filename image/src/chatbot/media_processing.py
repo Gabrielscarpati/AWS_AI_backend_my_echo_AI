@@ -54,6 +54,8 @@ def process_media_input(state: State) -> State:
 
         if transcribed_text:
             print(f"Audio transcribed to: {transcribed_text[:100]}...")
+            # Store the transcription for output
+            state["audio_transcription"] = transcribed_text
             # Use transcribed text for database querying, but keep original query for reference
             state["user_query"] = transcribed_text
         else:
@@ -106,6 +108,8 @@ def process_media_input(state: State) -> State:
 
         # Store the description for later use
         state["image_description"] = description
+        # Store the transcription for output
+        state["image_transcription"] = description
 
         # Create enhanced query that explains the image context
         enhanced_query = (
@@ -135,6 +139,14 @@ def generate_tts_output(state: State) -> State:
     # Check if we should generate TTS based on API field
     should_generate_tts = state.get("should_generate_tts", False)
 
+    # Preserve RAG JSON fields
+    rag_fields = {
+        'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+        'context_data_json': state.get('context_data_json', ''),
+        'expert_analysis_json': state.get('expert_analysis_json', ''),
+        'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+    }
+
     if should_generate_tts:
         response_text = state.get("response", "")
         if response_text and response_text.strip():
@@ -142,6 +154,9 @@ def generate_tts_output(state: State) -> State:
 
             # Use the TTS service to generate audio
             updated_state = generate_tts_response(response_text, state)
-            return updated_state
+            return {
+                **rag_fields,
+                **updated_state
+            }
 
-    return state
+    return {**rag_fields, **state}

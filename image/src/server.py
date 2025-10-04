@@ -44,7 +44,8 @@ async def health():
 
 @app.get("/version")
 async def version():
-    return {"version": "1.0.9", "description": "Fish ID voice renamed"}
+    # Updated: 2025-10-03 20:55 ET
+    return {"version": "1.0.11", "description": "formatting update - deployed Oct 3"}
 
 
 @app.post("/chat")
@@ -77,6 +78,33 @@ async def chat_endpoint(payload: dict, token: str = Depends(verify_token)):
     """
     try:
         print(f"Received chat request with payload keys: {list(payload.keys())}")
+
+        # Clean audio_data and image_data to remove data URI prefixes if present
+        if "audio_data" in payload and isinstance(payload["audio_data"], str):
+            audio_data = payload["audio_data"].strip()
+            if audio_data.startswith("data:audio/"):
+                # Find the comma and take the base64 part after it
+                comma_pos = audio_data.find(",")
+                if comma_pos != -1:
+                    payload["audio_data"] = audio_data[comma_pos + 1:]
+                    print("Cleaned audio_data: removed data URI prefix")
+                else:
+                    print("Warning: audio_data has data URI prefix but no comma found")
+            else:
+                print("audio_data already in raw base64 format")
+
+        if "image_data" in payload and isinstance(payload["image_data"], str):
+            image_data = payload["image_data"].strip()
+            if image_data.startswith("data:image/"):
+                # Find the comma and take the base64 part after it
+                comma_pos = image_data.find(",")
+                if comma_pos != -1:
+                    payload["image_data"] = image_data[comma_pos + 1:]
+                    print("Cleaned image_data: removed data URI prefix")
+                else:
+                    print("Warning: image_data has data URI prefix but no comma found")
+            else:
+                print("image_data already in raw base64 format")
 
         event = {
             "body": json.dumps(payload),

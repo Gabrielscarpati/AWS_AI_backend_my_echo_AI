@@ -60,3 +60,22 @@ docker tag influencer-brain-api:latest 827138162380.dkr.ecr.us-east-1.amazonaws.
 docker push 827138162380.dkr.ecr.us-east-1.amazonaws.com/influencer-brain-api:latest && \
 
 aws ecs update-service --cluster influencer-brain --service influencer-brain-task-service-wepvg641 --force-new-deployment --region us-east-1
+
+################ New command
+1. Build & Push (bypasses local storage):
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 827138162380.dkr.ecr.us-east-1.amazonaws.com
+
+2. Deploy to ECS:
+docker buildx build --no-cache --platform linux/amd64 --push -t 827138162380.dkr.ecr.us-east-1.amazonaws.com/influencer-brain-api:latest /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/image
+
+aws ecs update-service --cluster influencer-brain --service influencer-brain-task-service-wepvg641 --force-new-deployment --region us-east-1
+
+3. Verify (wait ~3 min):
+curl http://influencer-brain-alb-1945743263.us-east-1.elb.amazonaws.com/version
+
+FULL COMMAND:
+aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 827138162380.dkr.ecr.us-east-1.amazonaws.com && \
+
+docker buildx build --no-cache --platform linux/amd64 --push -t 827138162380.dkr.ecr.us-east-1.amazonaws.com/influencer-brain-api:latest /Users/gbscarpati/Desktop/development/AWS_AI_backend_my_echo_AI/image && \
+
+aws ecs update-service --cluster influencer-brain --service influencer-brain-task-service-wepvg641 --force-new-deployment --region us-east-1

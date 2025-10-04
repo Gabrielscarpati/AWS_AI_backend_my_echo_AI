@@ -202,7 +202,7 @@ def show_media_usage_examples(media_type: str):
 
     print("=" * 50)
 
-def main(enable_tts: bool = True):
+def main(enable_tts: bool = False):
     """Main function with TTS enabled by default."""
     print("🤖 Starting local chatbot test...")
     print("=" * 50)
@@ -353,7 +353,13 @@ Your knowledge comes only from:
                         print(f"   💾 Saved to: {audio_file}")
 
                         # Save the generated audio as base64 to audio_base64.txt for future input use
-                        generated_base64 = response_data['audio_output']  # Already base64
+                        generated_base64 = ''
+                        if 'audio_output_url' in response_data:
+                            audio_url = response_data['audio_output_url']
+                            if ',' in audio_url:
+                                generated_base64 = audio_url.split(',')[1]
+                            else:
+                                generated_base64 = audio_url
                         with open(AUDIO_BASE64_FILE, 'a', encoding='utf-8') as f:
                             f.write(f"\n# Generated audio from test msg {msg_count} at {datetime.now().isoformat()}\n")
                             f.write(f"# Length: {len(generated_base64)} characters\n")
@@ -414,7 +420,7 @@ Your knowledge comes only from:
 
 if __name__ == "__main__":
     # TTS is now always enabled by default
-    enable_tts = True
+    enable_tts = False
     if enable_tts:
         print("🎵 TTS generation enabled for all messages")
     main(enable_tts)

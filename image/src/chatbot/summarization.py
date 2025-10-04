@@ -24,7 +24,14 @@ def summarize(state: State) -> State:
     is_summary_turn = total_msgs_cnt > 0 and (hits_now or hits_with_next)
 
     if not is_summary_turn:
-        return {"summary_generated": False, "message_summary": ""}
+        # Preserve RAG JSON fields
+        rag_fields = {
+            'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+            'context_data_json': state.get('context_data_json', ''),
+            'expert_analysis_json': state.get('expert_analysis_json', ''),
+            'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        }
+        return {**rag_fields, "summary_generated": False, "message_summary": ""}
 
     # Summarize the last N messages (by total messages)
     messages_to_summarize_txt = messages_to_txt(state.get('chat_history', [])[-CONVERSATION_SUMMARY_THRESHOLD:])
@@ -51,4 +58,12 @@ def summarize(state: State) -> State:
     )]
     index.upsert(vectors=vectors)
 
-    return {"message_summary": str(response.content), "summary_generated": True}
+    # Preserve RAG JSON fields
+    rag_fields = {
+        'recent_chat_history_json': state.get('recent_chat_history_json', ''),
+        'context_data_json': state.get('context_data_json', ''),
+        'expert_analysis_json': state.get('expert_analysis_json', ''),
+        'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+    }
+
+    return {**rag_fields, "message_summary": str(response.content), "summary_generated": True}

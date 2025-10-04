@@ -29,7 +29,7 @@ def handler(event, context):
             "tts_voice_id": <optional_voice_id>  # TTS voice ID for this creator
         }
     }
-    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str, "audio_output": "...", "audio_output_url": "..."}
+    Returns JSON {"response": "...", "summary_generated": bool, "message_summary": str, "audio_output_url": "..."}
     """
     
     try:
@@ -188,6 +188,20 @@ def handler(event, context):
             "security_check_result": final_state.get("security_check_result", {})
         }
 
+        # Format transcriptions with proper prefixes
+        input_media_type = final_state.get("input_media_type", "text")
+        audio_transcription = final_state.get("audio_transcription")
+        image_transcription = final_state.get("image_transcription")
+        
+        formatted_audio_transcription = None
+        formatted_image_transcription = None
+        
+        if audio_transcription:
+            formatted_audio_transcription = f"User audio transcribed: {audio_transcription}"
+        
+        if image_transcription:
+            formatted_image_transcription = f"User image transcribed: {image_transcription}"
+
         return {
             "statusCode": 200,
             "body": json.dumps({
@@ -200,9 +214,14 @@ def handler(event, context):
                 "wall_time": wall_time,
                 # Media output - only return URL (data URI with base64)
                 "audio_output_url": final_state.get("audio_output_url"),
-                "input_media_type": final_state.get("input_media_type", "text"),
+                "input_media_type": input_media_type,
                 "image_description": final_state.get("image_description"),
                 "should_generate_tts": final_state.get("should_generate_tts", False),
+                # Transcriptions with proper formatting
+                "audio_transcription": formatted_audio_transcription,
+                "image_transcription": formatted_image_transcription,
+                # Text sent to Fish.AI for TTS
+                "tts_text_sent": final_state.get("tts_text_sent"),
             })
         }
     

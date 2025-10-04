@@ -110,8 +110,8 @@ def generate_tts_response(text: str, state: Dict[str, Any]) -> Dict[str, Any]:
     if tts_result:
         return {
             **state,
-            "audio_output": tts_result["audio_data"],
-            "audio_output_url": f"data:{tts_result['content_type']};base64,{base64.b64encode(tts_result['audio_data']).decode()}"
+            "audio_output_url": f"data:{tts_result['content_type']};base64,{base64.b64encode(tts_result['audio_data']).decode()}",
+            "tts_text_sent": text  # Store the text sent to Fish.AI
         }
     else:
         print("Failed to generate TTS")

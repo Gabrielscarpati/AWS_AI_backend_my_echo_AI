@@ -3,6 +3,7 @@ import os
 import base64
 from typing import List, Dict, Any
 from langchain_core.messages import BaseMessage, SystemMessage
+import json
 
 from .state import State
 from .config import PAST_CHAT_HISTORY_CNT
@@ -138,6 +139,11 @@ def answer_with_rag(
 ) -> Dict[str, Any]:
     """Answer question using RAG approach."""
     pack = influencer_retrieve(question, creator_id=creator_id, use_cross_encoder=use_cross_encoder)
+    
+    # Debug: Print pack structure
+    print(f"DEBUG pack keys: {list(pack.keys())}")
+    print(f"DEBUG pack structure: { {k: type(v).__name__ + f'({len(v)})' if isinstance(v, list) else type(v).__name__ for k, v in pack.items()} }")
+    
     prompt = format_pack(
         creator_id,
         question,
@@ -170,6 +176,18 @@ def answer_with_rag(
     else:
         text = _ollama_chat(messages, model=model, temperature=temperature, max_tokens=max_tokens)
     TIMINGS['answer_with_rag_model_call'] = time.time() - tmodel
+    
+    # Debug: Print extracted RAG data before return
+    context_data = pack.get("context_data", [])
+    expert_analysis = pack.get("expert_analysis", [])
+    interview_styles = pack.get("interview_styles", [])
+    print(f"DEBUG extracted RAG: context={len(context_data)}, expert={len(expert_analysis)}, interview={len(interview_styles)}")
+    if context_data:
+        print(f"DEBUG sample context: {context_data[0]}")
+    if expert_analysis:
+        print(f"DEBUG sample expert: {expert_analysis[0]}")
+    if interview_styles:
+        print(f"DEBUG sample interview: {interview_styles[0]}")
 
     return {
         "provider": provider,
@@ -178,7 +196,10 @@ def answer_with_rag(
         "lenses_used": pack.get("lenses_used", []),
         "reflections": pack.get("reflections", []),
         "memories": pack.get("memories", []),
-        "answer": text
+        "answer": text,
+        "context_data": context_data,
+        "expert_analysis": expert_analysis,
+        "interview_and_communication_style": interview_styles
     }
 
 
@@ -295,16 +316,28 @@ def generate_influencer_answer(state: State) -> State:
     )
 
     TIMINGS['generate_influencer_answer'] = time.time() - tgen
+    
+    # Debug: Print RAG data lengths to verify retrieval
+    print(f"DEBUG RAG data counts: context={len(out.get('context_data', []))}, expert={len(out.get('expert_analysis', []))}, interview={len(out.get('interview_and_communication_style', []))}")
+    
     sources = {
         "lenses_used": out.get("lenses_used", []),
         "context_data": [r.get("id") for r in out.get("context_data", [])],
         "expert_analysis": [m.get("id") for m in out.get("expert_analysis", [])],
-        "interview_styles": [m.get("id") for m in out.get("interview_styles", [])],
+        "interview_styles": [m.get("id") for m in out.get("interview_and_communication_style", [])],
     }
     answer_text = out.get("answer", "")
+    recent_history_json = json.dumps([{"role": "USER" if msg.type == "human" else "ASSISTANT", "content": msg.content} for msg in recent_chat_history])
+    context_data_json = json.dumps(out.get("context_data", []))
+    expert_analysis_json = json.dumps(out.get("expert_analysis", []))
+    interview_style_json = json.dumps(out.get("interview_and_communication_style", []))
     return {
         "influencer_answer": answer_text,
         "influencer_sources": sources,
         "response": answer_text,
         "timings": TIMINGS.copy(),
+        "recent_chat_history_json": recent_history_json,
+        "context_data_json": context_data_json,
+        "expert_analysis_json": expert_analysis_json,
+        "interview_and_communication_style_json": interview_style_json,
     }

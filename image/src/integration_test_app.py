@@ -92,8 +92,10 @@ def run_handler(user_message="What's your name?", **kwargs):
             print(json.dumps(response_data, indent=2))
 
             # Show additional info
-            if response_data.get("audio_output"):
-                print(f"\n🔊 Audio generated: {len(response_data['audio_output'])} bytes")
+            if response_data.get("audio_output_url"):
+                audio_url = response_data["audio_output_url"]
+                base64_part = audio_url.split(',')[1] if ',' in audio_url else audio_url
+                print(f"\n🔊 Audio generated: {len(base64_part)} chars (base64 from URL)")
 
             if response_data.get("timings"):
                 timings = response_data["timings"]

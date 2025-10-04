@@ -27,8 +27,15 @@ class State(TypedDict, total=False):
     input_media_type: str  # 'text', 'audio', 'image'
     audio_data: bytes  # Base64 encoded audio data
     image_data: bytes  # Base64 encoded image data
-    audio_output: bytes  # Generated audio response from TTS (stored as bytes in state, converted to base64 for JSON response)
     audio_output_url: str  # URL to the generated audio file
     image_description: str  # Description of the image from GPT-4.1-mini
     should_generate_tts: bool  # Whether to generate TTS output (API controlled)
     tts_voice_id: str  # TTS voice ID for this creator
+    audio_transcription: str  # User audio transcription from AssemblyAI
+    image_transcription: str  # User image transcription from GPT-4.1-nano
+    tts_text_sent: str  # Text that was sent to Fish.AI for TTS generation
+    # RAG logging fields
+    recent_chat_history_json: str
+    context_data_json: str
+    expert_analysis_json: str
+    interview_and_communication_style_json: str
