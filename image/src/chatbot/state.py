@@ -39,3 +39,4 @@ class State(TypedDict, total=False):
     context_data_json: str
     expert_analysis_json: str
     interview_and_communication_style_json: str
+    complete_prompt: str

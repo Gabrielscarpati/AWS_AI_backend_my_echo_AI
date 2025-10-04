@@ -98,12 +98,13 @@ def perform_security_check(text: str) -> Dict[str, Any]:
 def security_check_node(state: State) -> State:
     """Node to perform security checks on the AI response."""
     if not SECURITY_ENABLED:
-        # Preserve RAG JSON fields
+        # Preserve fields including complete_prompt
         rag_fields = {
             'recent_chat_history_json': state.get('recent_chat_history_json', ''),
             'context_data_json': state.get('context_data_json', ''),
             'expert_analysis_json': state.get('expert_analysis_json', ''),
             'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+            'complete_prompt': state.get('complete_prompt', ''),
         }
         return {
             **rag_fields,
@@ -114,12 +115,13 @@ def security_check_node(state: State) -> State:
 
     response_text = state.get("response", "")
     if not response_text:
-        # Preserve RAG JSON fields
+        # Preserve fields including complete_prompt
         rag_fields = {
             'recent_chat_history_json': state.get('recent_chat_history_json', ''),
             'context_data_json': state.get('context_data_json', ''),
             'expert_analysis_json': state.get('expert_analysis_json', ''),
             'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+            'complete_prompt': state.get('complete_prompt', ''),
         }
         return {
             **rag_fields,
@@ -135,12 +137,13 @@ def security_check_node(state: State) -> State:
     # Perform security check
     security_result = perform_security_check(response_text)
 
-    # Preserve RAG JSON fields
+    # Preserve fields including complete_prompt
     rag_fields = {
         'recent_chat_history_json': state.get('recent_chat_history_json', ''),
         'context_data_json': state.get('context_data_json', ''),
         'expert_analysis_json': state.get('expert_analysis_json', ''),
         'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        'complete_prompt': state.get('complete_prompt', ''),
     }
 
     if security_result["overall_flagged"]:
@@ -166,12 +169,13 @@ def regenerate_safe_response(state: State) -> State:
     """Regenerate response with additional safety instructions when flagged."""
     retry_count = state.get("security_retry_count", 0)
 
-    # Preserve RAG JSON fields from current state
+    # Preserve fields including complete_prompt from current state
     rag_fields = {
         'recent_chat_history_json': state.get('recent_chat_history_json', ''),
         'context_data_json': state.get('context_data_json', ''),
         'expert_analysis_json': state.get('expert_analysis_json', ''),
         'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        'complete_prompt': state.get('complete_prompt', ''),
     }
 
     if retry_count >= MAX_SECURITY_RETRIES:
@@ -230,8 +234,9 @@ CRITICAL SAFETY REQUIREMENTS:
     expert_analysis_json = json.dumps(out.get("expert_analysis", []))
     interview_style_json = json.dumps(out.get("interview_and_communication_style", []))
 
+    # At the end, return with preserved fields
     return {
-        **rag_fields,  # Preserve original RAG data
+        **rag_fields,
         "response": out.get("answer", ""),
         "security_retry_count": retry_count + 1,
         "influencer_answer": out.get("answer", ""),
@@ -239,6 +244,7 @@ CRITICAL SAFETY REQUIREMENTS:
         "context_data_json": context_data_json,
         "expert_analysis_json": expert_analysis_json,
         "interview_and_communication_style_json": interview_style_json,
+        "complete_prompt": out.get("complete_prompt", ""),  # Add the complete prompt from the safe generation
     }
 
 

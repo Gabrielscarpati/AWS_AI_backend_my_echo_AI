@@ -43,6 +43,7 @@ def log_interaction(state: State) -> State:
             "interview_and_communication_style": state.get('interview_and_communication_style_json', json.dumps([])),
             "expert_analysis": state.get('expert_analysis_json', json.dumps([])),
             "context_data": state.get('context_data_json', json.dumps([])),
+            "complete_prompt": state.get('complete_prompt', ''),
             "input_media_type": state.get('input_media_type', 'text'),
             "transcription": (state.get('audio_transcription') or state.get('image_transcription', '') or ''),
             "should_generate_tts": state.get('should_generate_tts', False),

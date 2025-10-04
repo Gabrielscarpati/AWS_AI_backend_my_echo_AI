@@ -24,12 +24,13 @@ def summarize(state: State) -> State:
     is_summary_turn = total_msgs_cnt > 0 and (hits_now or hits_with_next)
 
     if not is_summary_turn:
-        # Preserve RAG JSON fields
+        # Preserve fields including complete_prompt
         rag_fields = {
             'recent_chat_history_json': state.get('recent_chat_history_json', ''),
             'context_data_json': state.get('context_data_json', ''),
             'expert_analysis_json': state.get('expert_analysis_json', ''),
             'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+            'complete_prompt': state.get('complete_prompt', ''),
         }
         return {**rag_fields, "summary_generated": False, "message_summary": ""}
 
@@ -58,12 +59,13 @@ def summarize(state: State) -> State:
     )]
     index.upsert(vectors=vectors)
 
-    # Preserve RAG JSON fields
+    # Preserve fields including complete_prompt
     rag_fields = {
         'recent_chat_history_json': state.get('recent_chat_history_json', ''),
         'context_data_json': state.get('context_data_json', ''),
         'expert_analysis_json': state.get('expert_analysis_json', ''),
         'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        'complete_prompt': state.get('complete_prompt', ''),
     }
 
     return {**rag_fields, "message_summary": str(response.content), "summary_generated": True}

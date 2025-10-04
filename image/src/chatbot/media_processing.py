@@ -127,24 +127,16 @@ def process_media_input(state: State) -> State:
 
 
 def generate_tts_output(state: State) -> State:
-    """
-    Generate TTS output based on API-controlled boolean field.
-
-    Args:
-        state: Current state with response text
-
-    Returns:
-        Updated state with TTS audio data if applicable
-    """
-    # Check if we should generate TTS based on API field
+    """Generate TTS output based on API-controlled boolean field."""
     should_generate_tts = state.get("should_generate_tts", False)
 
-    # Preserve RAG JSON fields
+    # Preserve fields including complete_prompt
     rag_fields = {
         'recent_chat_history_json': state.get('recent_chat_history_json', ''),
         'context_data_json': state.get('context_data_json', ''),
         'expert_analysis_json': state.get('expert_analysis_json', ''),
         'interview_and_communication_style_json': state.get('interview_and_communication_style_json', ''),
+        'complete_prompt': state.get('complete_prompt', ''),
     }
 
     if should_generate_tts:

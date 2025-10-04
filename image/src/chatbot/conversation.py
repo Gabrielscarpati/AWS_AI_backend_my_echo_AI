@@ -199,7 +199,8 @@ def answer_with_rag(
         "answer": text,
         "context_data": context_data,
         "expert_analysis": expert_analysis,
-        "interview_and_communication_style": interview_styles
+        "interview_and_communication_style": interview_styles,
+        "complete_prompt": prompt  # Add the full formatted prompt for logging
     }
 
 
@@ -331,6 +332,7 @@ def generate_influencer_answer(state: State) -> State:
     context_data_json = json.dumps(out.get("context_data", []))
     expert_analysis_json = json.dumps(out.get("expert_analysis", []))
     interview_style_json = json.dumps(out.get("interview_and_communication_style", []))
+    complete_prompt = out.get("complete_prompt", "")
     return {
         "influencer_answer": answer_text,
         "influencer_sources": sources,
@@ -340,4 +342,5 @@ def generate_influencer_answer(state: State) -> State:
         "context_data_json": context_data_json,
         "expert_analysis_json": expert_analysis_json,
         "interview_and_communication_style_json": interview_style_json,
+        "complete_prompt": complete_prompt
     }
